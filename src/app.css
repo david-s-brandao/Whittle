@@ -1,0 +1,259 @@
+@import 'tailwindcss';
+
+/* Dark mode is driven by a `dark` class on <html> (set by the theme store). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ── Design tokens ─────────────────────────────────────────────
+   Change the accent here, in one place. Everything else is neutral
+   so the orange only ever means "primary / selected / active". */
+:root {
+  --accent: #f66008;
+  --accent-hover: #e05206;
+
+  --surface: #ffffff;
+  --surface-2: #f8f8f9; /* sidebar, panels */
+  --hover: #f1f1f3;
+  --border: #e9e9ec;
+  --text: #18181b;
+  --muted: #6b6b76;
+  --faint: #a0a0aa;
+
+  --add: #15803d;
+  --del: #dc2626;
+  --info: #2563eb;
+  --add-bg: rgb(22 163 74 / 0.1);
+  --del-bg: rgb(220 38 38 / 0.09);
+}
+:root.dark {
+  --surface: #111113;
+  --surface-2: #161618;
+  --hover: #1e1e22;
+  --border: #26262b;
+  --text: #ececf0;
+  --muted: #9b9ba5;
+  --faint: #6a6a74;
+
+  --add: #4ade80;
+  --del: #f87171;
+  --info: #60a5fa;
+  --add-bg: rgb(74 222 128 / 0.1);
+  --del-bg: rgb(248 113 113 / 0.1);
+}
+
+@theme inline {
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-hover: var(--hover);
+  --color-border: var(--border);
+  --color-fg: var(--text);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-add: var(--add);
+  --color-del: var(--del);
+  --color-info: var(--info);
+  --font-sans: 'Inter', ui-sans-serif, system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+}
+
+html {
+  font-size: 13px;
+}
+html,
+body,
+#app {
+  height: 100%;
+}
+body {
+  margin: 0;
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  user-select: none; /* it's an app, not a web page; text areas/inputs opt back in */
+  overflow: hidden;
+}
+input,
+textarea,
+pre,
+.selectable {
+  user-select: text;
+}
+::selection {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  outline-offset: 1px;
+}
+input:focus-visible,
+textarea:focus-visible {
+  outline: none;
+}
+
+/* thin, unobtrusive scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--faint);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
+
+/* ── Shared building blocks ───────────────────────────────── */
+@layer components {
+  .btn {
+    @apply inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-[12.5px] font-medium whitespace-nowrap text-fg transition-colors hover:bg-hover disabled:pointer-events-none disabled:opacity-40;
+  }
+  .btn-outline {
+    @apply border border-border hover:border-faint;
+  }
+  .btn-primary {
+    @apply bg-accent text-white hover:bg-accent-hover;
+  }
+  .btn-danger {
+    @apply text-del hover:bg-del/10;
+  }
+  .btn-lg {
+    @apply h-9 px-4 text-[13px];
+  }
+  .icon-btn {
+    @apply inline-grid size-7 shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-hover hover:text-fg disabled:pointer-events-none disabled:opacity-40;
+  }
+  .icon-btn-sm {
+    @apply size-6;
+  }
+  .chip {
+    @apply inline-grid h-4 min-w-4 place-items-center rounded-full bg-hover px-1 text-[10.5px] leading-none font-semibold text-muted;
+  }
+  .chip-accent {
+    @apply bg-accent text-white;
+  }
+  .kbd {
+    @apply rounded border border-border bg-surface-2 px-1.5 py-px font-mono text-[10.5px] text-muted;
+  }
+  .input {
+    @apply h-9 w-full rounded-md border border-border bg-surface px-3 text-[13px] transition-colors outline-none placeholder:text-faint focus:border-accent focus:ring-2 focus:ring-accent/20 disabled:opacity-60;
+  }
+  .label {
+    @apply mb-1.5 block text-[12px] font-medium text-muted;
+  }
+  .section-label {
+    @apply text-[11px] font-semibold tracking-wide text-faint uppercase;
+  }
+  .backdrop {
+    @apply fixed inset-0 z-50 flex items-start justify-center bg-black/40 pt-[12vh] backdrop-blur-[2px];
+  }
+  .modal {
+    @apply max-w-[92vw] overflow-hidden rounded-xl border border-border bg-surface shadow-2xl;
+  }
+  .toast {
+    @apply pointer-events-auto w-[380px] max-w-[92vw] rounded-lg border border-border bg-surface p-3 text-[12.5px] shadow-xl;
+  }
+}
+
+/* ── Rendered markdown (issue / PR text) ──────────────────── */
+.md {
+  font-size: 13px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.md > :first-child {
+  margin-top: 0;
+}
+.md > :last-child {
+  margin-bottom: 0;
+}
+.md p,
+.md ul,
+.md ol,
+.md blockquote,
+.md pre,
+.md h1,
+.md h2,
+.md h3,
+.md h4 {
+  margin: 0.6em 0;
+}
+.md h1,
+.md h2 {
+  font-size: 1.25em;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.2em;
+}
+.md h3,
+.md h4,
+.md h5,
+.md h6 {
+  font-size: 1.05em;
+  font-weight: 600;
+}
+.md ul {
+  list-style: disc;
+  padding-left: 1.5em;
+}
+.md ol {
+  list-style: decimal;
+  padding-left: 1.5em;
+}
+.md li input {
+  margin-right: 0.35em;
+  accent-color: var(--accent);
+}
+.md code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  background: var(--hover);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+}
+.md pre {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.7em 0.9em;
+  overflow-x: auto;
+}
+.md pre code {
+  background: none;
+  padding: 0;
+}
+.md blockquote {
+  border-left: 3px solid var(--border);
+  padding-left: 0.9em;
+  color: var(--muted);
+}
+.md a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.md hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 1em 0;
+}
+.md .md-mention {
+  font-weight: 500;
+  color: var(--accent);
+}
