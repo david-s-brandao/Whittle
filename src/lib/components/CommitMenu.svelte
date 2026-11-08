@@ -11,9 +11,13 @@
   function close() {
     ui.commitMenu = null
   }
+  // Run the action first: its closure reads the menu's target, which close() clears.
   function run(fn: () => void) {
-    close()
-    fn()
+    try {
+      fn()
+    } finally {
+      close()
+    }
   }
   const left = $derived(m ? Math.max(8, Math.min(m.x, window.innerWidth - 310)) : 0)
   const top = $derived(m ? Math.max(8, Math.min(m.y, window.innerHeight - 380)) : 0)

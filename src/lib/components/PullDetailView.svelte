@@ -15,14 +15,21 @@
   let tab = $state<'conversation' | 'files'>('conversation')
   let reviewOpen = $state(false)
   let selectedFile = $state<string | null>(null)
+  let fileQuery = $state('')
+  let composer = $state<ReturnType<typeof Composer>>()
+  const quote = (author: string, body: string) => {
+    void composer?.quote(author, body)
+  }
 
   const d = $derived(detail.pull)
+  const threadKey = $derived(d?.summary.url)
 
   // a new pull request starts on the conversation
   $effect(() => {
-    void d?.summary.number
+    void threadKey
     tab = 'conversation'
     selectedFile = null
+    fileQuery = ''
   })
   $effect(() => {
     if (tab === 'files') detail.loadFiles()
@@ -83,7 +90,12 @@
   })
 
   const files = $derived(detail.files)
-  const current = $derived(files?.find((f) => f.filename === selectedFile) ?? files?.[0] ?? null)
+  const visibleFiles = $derived(
+    files?.filter((f) => f.filename.toLowerCase().includes(fileQuery.trim().toLowerCase())) ?? [],
+  )
+  const current = $derived(
+    visibleFiles.find((f) => f.filename === selectedFile) ?? visibleFiles[0] ?? null,
+  )
   const countFor = (path: string) =>
     d?.review_comments.filter((c) => c.path === path && c.in_reply_to === null).length ?? 0
 </script>
@@ -92,7 +104,7 @@
   {@const s = d.summary}
   <div class="flex h-full min-h-0 flex-col">
     <div class="border-b border-border px-6 pt-4">
-      <div class="flex items-start gap-3">
+      <div class="flex flex-wrap items-start gap-3">
         <StateIcon kind="pr" state={s.state} draft={s.draft} size={20} />
         <div class="min-w-0 flex-1">
           <h2 class="selectable text-[17px] leading-snug font-semibold">
@@ -137,7 +149,17 @@
             </div>
           {/if}
         </div>
-        <div class="flex shrink-0 items-center gap-1.5">
+        <div class="flex w-full flex-wrap items-center justify-end gap-1.5">
+          {#if tab === 'conversation'}<button class="btn h-8" onclick={() => composer?.focus()}
+              >Write a comment</button
+            >{/if}
+          <button
+            class="icon-btn"
+            title="Refresh discussion"
+            disabled={detail.refreshing || detail.busy}
+            onclick={() => detail.refresh()}
+            ><Icon name="refresh" class={detail.refreshing ? 'animate-spin' : ''} /></button
+          >
           {#if s.state === 'open'}
             <button class="btn btn-primary h-8 font-semibold" onclick={() => (reviewOpen = true)}
               >Review changes</button
@@ -175,69 +197,94 @@
     </div>
 
     {#if tab === 'conversation'}
-      <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
-        <CommentCard author={s.author} time={s.created_at} body={d.body} url={s.url} />
-        {#each timeline as it (it.kind + (it.kind === 'comment' ? it.c.id : it.r.id))}
-          {#if it.kind === 'comment'}
-            <CommentCard
-              author={it.c.author}
-              time={it.c.created_at}
-              body={it.c.body}
-              association={it.c.association}
-              url={it.c.url}
-            />
-          {:else}
-            <div class="space-y-2">
+      <div class="min-h-0 flex-1 overflow-y-auto px-4 py-5 lg:px-6">
+        <div class="mx-auto w-full max-w-3xl space-y-4">
+          <CommentCard
+            author={s.author}
+            time={s.created_at}
+            body={d.body}
+            url={s.url}
+            onquote={quote}
+          />
+          {#each timeline as it (it.kind + (it.kind === 'comment' ? it.c.id : it.r.id))}
+            {#if it.kind === 'comment'}
               <CommentCard
-                author={it.r.author}
-                time={it.r.submitted_at}
-                body={it.r.body}
-                url={it.r.url}
-                badge={verdict[it.r.state]}
+                author={it.c.author}
+                time={it.c.created_at}
+                body={it.c.body}
+                association={it.c.association}
+                url={it.c.url}
+                onquote={quote}
               />
-              {#each it.inline as c (c.id)}
+            {:else}
+              <div class="space-y-2">
+                <CommentCard
+                  author={it.r.author}
+                  time={it.r.submitted_at}
+                  body={it.r.body}
+                  url={it.r.url}
+                  badge={verdict[it.r.state]}
+                  onquote={quote}
+                />
+                {#each it.inline as c (c.id)}
+                  <button
+                    class="ml-11 block w-[calc(100%-2.75rem)] rounded-lg border border-border bg-surface-2 px-3 py-2 text-left hover:border-faint"
+                    title="Show in the diff"
+                    onclick={() => {
+                      selectedFile = c.path
+                      tab = 'files'
+                    }}
+                  >
+                    <div class="font-mono text-[11.5px] text-muted">
+                      {c.path}{c.line ? `:${c.line}` : ''}
+                    </div>
+                    <div class="mt-0.5 line-clamp-2 text-[12.5px]">{c.body}</div>
+                  </button>
+                {/each}
+              </div>
+            {/if}
+          {/each}
+          <div class="mx-auto w-full pt-2">
+            {#key s.url}
+              <Composer
+                bind:this={composer}
+                draftKey={s.url}
+                busy={detail.busy || detail.refreshing}
+                onsubmit={(b) => detail.comment(b)}
+              >
                 <button
-                  class="ml-11 block w-[calc(100%-2.75rem)] rounded-lg border border-border bg-surface-2 px-3 py-2 text-left hover:border-faint"
-                  title="Show in the diff"
-                  onclick={() => {
-                    selectedFile = c.path
-                    tab = 'files'
-                  }}
+                  class="btn btn-outline h-7"
+                  disabled={detail.busy || s.state === 'merged'}
+                  onclick={() => detail.setState(s.state === 'open' ? 'closed' : 'open')}
                 >
-                  <div class="font-mono text-[11.5px] text-muted">
-                    {c.path}{c.line ? `:${c.line}` : ''}
-                  </div>
-                  <div class="mt-0.5 line-clamp-2 text-[12.5px]">{c.body}</div>
+                  {s.state === 'open'
+                    ? 'Close pull request'
+                    : s.state === 'merged'
+                      ? 'Merged'
+                      : 'Reopen'}
                 </button>
-              {/each}
-            </div>
-          {/if}
-        {/each}
-        <div class="max-w-3xl pt-2">
-          <Composer busy={detail.busy} onsubmit={(b) => detail.comment(b)}>
-            <button
-              class="btn btn-outline h-7"
-              disabled={detail.busy || s.state === 'merged'}
-              onclick={() => detail.setState(s.state === 'open' ? 'closed' : 'open')}
-            >
-              {s.state === 'open'
-                ? 'Close pull request'
-                : s.state === 'merged'
-                  ? 'Merged'
-                  : 'Reopen'}
-            </button>
-          </Composer>
+              </Composer>
+            {/key}
+          </div>
         </div>
       </div>
     {:else}
       <div class="flex min-h-0 flex-1">
         <div class="flex w-72 shrink-0 flex-col border-r border-border bg-surface-2">
           <div class="section-label px-4 py-2">{files?.length ?? d.changed_files} files</div>
+          <div class="px-3 pb-2">
+            <input
+              class="input h-8"
+              aria-label="Filter pull request files"
+              placeholder="Filter files by path…"
+              bind:value={fileQuery}
+            />
+          </div>
           <ul class="min-h-0 flex-1 overflow-y-auto pb-2">
             {#if detail.filesLoading && !files}
               <li class="px-4 py-2 text-[12px] text-muted">Loading files…</li>
             {/if}
-            {#each files ?? [] as f (f.filename)}
+            {#each visibleFiles as f (f.filename)}
               {@const [dir, name] = splitPath(f.filename)}
               {@const n = countFor(f.filename)}
               <li>
@@ -278,7 +325,9 @@
               />
             {/key}
           {:else if !detail.filesLoading}
-            <div class="grid h-full place-items-center text-muted">No files.</div>
+            <div class="grid h-full place-items-center text-muted">
+              {fileQuery ? 'No files match this filter.' : 'No files.'}
+            </div>
           {/if}
         </div>
       </div>

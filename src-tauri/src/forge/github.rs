@@ -216,6 +216,8 @@ pub struct PullSummary {
     pub head_ref: String,
     pub base_ref: String,
     pub labels: Vec<Label>,
+    /// Start of the description; enough to find "fixes #12" style links.
+    pub body: String,
     pub created_at: String,
     pub updated_at: String,
     pub url: String,
@@ -361,6 +363,7 @@ fn pull_summary(v: &Value) -> PullSummary {
         head_ref: s(&v["head"]["ref"]),
         base_ref: s(&v["base"]["ref"]),
         labels: labels(v),
+        body: s(&v["body"]).chars().take(2000).collect(),
         created_at: s(&v["created_at"]),
         updated_at: s(&v["updated_at"]),
         url: s(&v["html_url"]),

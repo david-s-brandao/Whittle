@@ -26,6 +26,9 @@ class Changes {
   notice = $state<string | null>(null)
 
   #gen = 0
+  #diffGen = 0
+  #repoPath: string | undefined
+  #commitDrafts = new Map<string, { message: string; amend: boolean }>()
 
   /** Number of distinct files with any change (what the tab badge shows). */
   get total(): number {
@@ -40,6 +43,21 @@ class Changes {
   async refresh() {
     const path = projects.current?.path
     const gen = ++this.#gen
+    if (path !== this.#repoPath) {
+      if (this.#repoPath)
+        this.#commitDrafts.set(this.#repoPath, { message: this.message, amend: this.amend })
+      const draft = path ? this.#commitDrafts.get(path) : undefined
+      this.message = draft?.message ?? ''
+      this.amend = draft?.amend ?? false
+      this.notice = null
+      this.#repoPath = path
+      this.#diffGen++
+      this.status = empty
+      this.selection = null
+      this.diff = null
+      this.conflictText = null
+      this.error = null
+    }
     if (!path) {
       this.status = empty
       this.selection = null
@@ -76,6 +94,7 @@ class Changes {
   }
 
   async loadDiff() {
+    const gen = ++this.#diffGen
     const path = projects.current?.path
     const sel = this.selection
     if (!path || !sel) {
@@ -84,6 +103,8 @@ class Changes {
       return
     }
     const same = () =>
+      gen === this.#diffGen &&
+      projects.current?.path === path &&
       this.selection?.path === sel.path &&
       this.selection.staged === sel.staged &&
       this.selection.conflict === sel.conflict
@@ -102,8 +123,7 @@ class Changes {
         }
       }
     } catch (e) {
-      if (sel.conflict && same()) this.conflictText = String(e)
-      else this.error = String(e)
+      if (same()) this.error = String(e)
     }
   }
 
@@ -132,7 +152,7 @@ class Changes {
       await op(path)
       return true
     } catch (e) {
-      this.error = String(e)
+      if (projects.current?.path === path) this.error = String(e)
       return false
     } finally {
       this.busy = false
@@ -154,6 +174,17 @@ class Changes {
   /** Resolve a conflicted file by taking one side wholesale. */
   resolve(file: string, side: 'ours' | 'theirs') {
     return this.#run((p) => api.resolveConflict(p, file, side))
+  }
+
+  /** Writes the merged result from the conflict editor and stages the file. */
+  async saveResolved(file: string, content: string, advance = false) {
+    const path = projects.current?.path
+    const ok = await this.#run((p) => api.saveResolvedFile(p, file, content))
+    if (ok && advance && projects.current?.path === path && this.selection?.path === file) {
+      const next = this.status.conflicted[0]
+      if (next) await this.selectConflict(next)
+    }
+    return ok
   }
 
   markResolved(file: string) {
@@ -189,8 +220,11 @@ class Changes {
     const path = projects.current?.path
     if (on && path && !this.message.trim()) {
       try {
-        this.message = await api.headMessage(path)
+        const message = await api.headMessage(path)
+        if (projects.current?.path === path && this.amend && !this.message.trim())
+          this.message = message
       } catch (e) {
+        if (projects.current?.path !== path) return
         this.error = String(e)
         this.amend = false
       }
@@ -198,7 +232,7 @@ class Changes {
   }
 
   get canCommit(): boolean {
-    if (this.busy) return false
+    if (this.busy || this.status.conflicted.length) return false
     if (this.amend) return true // amend may only reword, or add staged files
     return this.status.staged.length > 0 && this.message.trim().length > 0
   }
@@ -206,16 +240,20 @@ class Changes {
   /** Why the commit button is disabled, in plain words (empty when enabled). */
   get blocker(): string {
     if (this.canCommit || this.busy) return ''
+    if (this.status.conflicted.length) return 'Resolve all conflicted files before committing.'
     if (!this.status.staged.length) return 'Stage at least one file to commit.'
     return 'Write a commit message.'
   }
 
   async commit() {
     if (!this.canCommit) return
+    const path = projects.current?.path
     const amend = this.amend
     const n = this.status.staged.length
     const ok = await this.#run((p) => api.commitChanges(p, this.message, amend))
     if (ok) {
+      if (path) this.#commitDrafts.delete(path)
+      if (projects.current?.path !== path) return
       this.message = ''
       this.amend = false
       this.notice = amend ? 'Commit amended.' : `Committed ${plural(n, 'file')}.`

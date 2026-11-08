@@ -26,7 +26,7 @@
 </script>
 
 <div class="pointer-events-none fixed right-4 bottom-4 z-40 flex flex-col items-end gap-2">
-  {#if sync.running}
+  {#if sync.running && !sync.background}
     <div class="toast">
       <div class="flex items-center gap-2 font-medium">
         <span class="text-accent">{opLabel[sync.running]}…</span>

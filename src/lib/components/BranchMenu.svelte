@@ -12,9 +12,13 @@
   function close() {
     ui.branchMenu = null
   }
+  // Run the action first: its closure reads the menu's target, which close() clears.
   function run(fn: () => void) {
-    close()
-    fn()
+    try {
+      fn()
+    } finally {
+      close()
+    }
   }
   // keep the menu inside the window
   const left = $derived(m ? Math.max(8, Math.min(m.x, window.innerWidth - 300)) : 0)

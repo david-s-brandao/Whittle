@@ -166,6 +166,8 @@ export interface PullSummary {
   head_ref: string
   base_ref: string
   labels: ForgeLabel[]
+  /** Start of the description (used to find which issues a pull request mentions). */
+  body: string
   created_at: string
   updated_at: string
   url: string
@@ -247,6 +249,7 @@ export interface Settings {
   terminal_cmd: string | null
   font_size: number
   accent: string
+  auto_fetch_minutes: number
 }
 
 export interface SubmoduleInfo {

@@ -37,6 +37,8 @@ pub struct Settings {
     pub font_size: u8,
     /// Accent colour as `#rrggbb`.
     pub accent: String,
+    /// Background fetch interval in minutes; zero disables it.
+    pub auto_fetch_minutes: u16,
 }
 
 impl Default for Settings {
@@ -48,6 +50,7 @@ impl Default for Settings {
             terminal_cmd: None,
             font_size: 13,
             accent: "#f66008".into(),
+            auto_fetch_minutes: 5,
         }
     }
 }
@@ -61,6 +64,9 @@ impl Settings {
         self.editor_cmd = norm(self.editor_cmd);
         self.terminal_cmd = norm(self.terminal_cmd);
         self.font_size = self.font_size.clamp(10, 20);
+        if self.auto_fetch_minutes > 60 {
+            return Err("Auto-fetch must be disabled (0) or between 1 and 60 minutes.".into());
+        }
         let a = self.accent.trim();
         let ok =
             a.len() == 7 && a.starts_with('#') && a[1..].chars().all(|c| c.is_ascii_hexdigit());
@@ -288,6 +294,10 @@ mod tests {
         std::fs::write(&file, r#"{"font_size": 15}"#).unwrap();
         let partial = load_settings(&file);
         assert_eq!(
+            partial.auto_fetch_minutes, 5,
+            "existing settings get auto-fetch defaults"
+        );
+        assert_eq!(
             (partial.font_size, partial.accent.as_str()),
             (15, "#f66008"),
             "missing keys fall back"
@@ -309,6 +319,22 @@ mod tests {
         assert_eq!(s.accent, "#abcdef");
         save_settings(&file, &s).unwrap();
         assert_eq!(load_settings(&file), s);
+        for minutes in [0, 1, 5, 60] {
+            let configured = Settings {
+                auto_fetch_minutes: minutes,
+                ..Default::default()
+            }
+            .sanitized()
+            .unwrap();
+            save_settings(&file, &configured).unwrap();
+            assert_eq!(load_settings(&file).auto_fetch_minutes, minutes);
+        }
+        assert!(Settings {
+            auto_fetch_minutes: 61,
+            ..Default::default()
+        }
+        .sanitized()
+        .is_err());
 
         for bad in ["red", "#fff", "#gggggg", "f66008", "#f66008;"] {
             assert!(

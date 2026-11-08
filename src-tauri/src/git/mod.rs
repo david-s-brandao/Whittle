@@ -881,6 +881,13 @@ pub fn read_text(root: &Path, rel: &str) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&bytes).into_owned())
 }
 
+/// Overwrites a working-tree file with `content` (the merged result from the conflict editor).
+/// The file must already exist inside the repo.
+pub fn write_text(root: &Path, rel: &str, content: &str) -> Result<(), String> {
+    let full = safe_join(root, rel)?;
+    std::fs::write(&full, content).map_err(|e| e.to_string())
+}
+
 /// What merging `source` into the current branch would do, computed without touching any file.
 #[derive(Debug, Serialize, PartialEq, Eq)]
 pub struct MergePreview {
@@ -1006,6 +1013,16 @@ mod tests {
         let refs: Vec<&git2::Commit> = parents.iter().collect();
         repo.commit(Some("HEAD"), &sig, &sig, name, &tree, &refs)
             .unwrap()
+    }
+
+    #[test]
+    fn write_text_overwrites_inside_the_repo_only() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("a.txt"), "old").unwrap();
+        write_text(dir.path(), "a.txt", "new\n").unwrap();
+        assert_eq!(read_text(dir.path(), "a.txt").unwrap(), "new\n");
+        assert!(write_text(dir.path(), "../escape.txt", "x").is_err());
+        assert!(write_text(dir.path(), "missing.txt", "x").is_err());
     }
 
     #[test]

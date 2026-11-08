@@ -11,6 +11,7 @@ import type {
   ReviewEvent,
 } from '../types'
 import { changes } from './changes.svelte'
+import { board } from './issueBoard.svelte'
 import { projects } from './projects.svelte'
 import { repo } from './repo.svelte'
 import { ui } from './ui.svelte'
@@ -172,6 +173,8 @@ export const pulls = new ForgeList<PullSummary>((p, s, q, n) => api.forgePulls(p
 
 /** The issue or pull request currently open on the right-hand side, and what you can do to it. */
 class ForgeDetail {
+  #filesGen = 0
+  refreshing = $state(false)
   issue = $state<IssueDetail | null>(null)
   pull = $state<PullDetail | null>(null)
   files = $state.raw<PullFile[] | null>(null)
@@ -183,11 +186,42 @@ class ForgeDetail {
 
   clear() {
     this.#gen++
+    this.#filesGen++
     this.issue = null
     this.pull = null
     this.files = null
     this.error = null
     this.loading = false
+    this.refreshing = false
+    this.filesLoading = false
+  }
+
+  /** Refresh in place, retaining the mounted composer, draft and scroll position. */
+  async refresh() {
+    const path = projects.current?.path
+    const issue = this.issue
+    const pull = this.pull
+    if (!path || (!issue && !pull) || this.busy || this.refreshing) return
+    const gen = this.#gen
+    this.refreshing = true
+    try {
+      if (issue) {
+        const updated = await api.forgeIssue(path, issue.summary.number)
+        if (gen === this.#gen) this.issue = updated
+      } else if (pull) {
+        const updated = await api.forgePull(path, pull.summary.number)
+        if (gen === this.#gen) {
+          this.pull = updated
+          this.#filesGen++
+          this.files = null
+          this.filesLoading = false
+        }
+      }
+    } catch (e) {
+      if (gen === this.#gen) ui.notice = { kind: 'error', text: asText(e) }
+    } finally {
+      if (gen === this.#gen) this.refreshing = false
+    }
   }
 
   async openIssue(number: number) {
@@ -229,21 +263,22 @@ class ForgeDetail {
     const n = this.pull?.summary.number
     if (!path || !n || this.files || this.filesLoading) return
     const gen = this.#gen
+    const filesGen = ++this.#filesGen
     this.filesLoading = true
     try {
       const f = await api.forgePullFiles(path, n)
-      if (gen === this.#gen) this.files = f
+      if (gen === this.#gen && filesGen === this.#filesGen) this.files = f
     } catch (e) {
-      if (gen === this.#gen) this.error = asText(e)
+      if (gen === this.#gen && filesGen === this.#filesGen) this.error = asText(e)
     } finally {
-      this.filesLoading = false
+      if (gen === this.#gen && filesGen === this.#filesGen) this.filesLoading = false
     }
   }
 
   /** Runs a write; shows the service's error text if it fails. */
   async #write<T>(op: (path: string) => Promise<T>): Promise<T | null> {
     const path = projects.current?.path
-    if (!path || this.busy) return null
+    if (!path || this.busy || this.refreshing) return null
     this.busy = true
     this.error = null
     try {
@@ -258,36 +293,48 @@ class ForgeDetail {
 
   /** Comment on whichever of issue / pull request is open. Returns true when posted. */
   async comment(body: string): Promise<boolean> {
+    const gen = this.#gen
     const number = this.issue?.summary.number ?? this.pull?.summary.number
     if (!number) return false
     const c = await this.#write((p) => api.forgeComment(p, number, body))
     if (!c) return false
+    if (gen !== this.#gen) return true
     const add = (list: ForgeComment[]) => [...list, c]
-    if (this.issue) this.issue = { ...this.issue, comments: add(this.issue.comments) }
+    if (this.issue)
+      this.issue = {
+        ...this.issue,
+        summary: { ...this.issue.summary, comments: this.issue.summary.comments + 1 },
+        comments: add(this.issue.comments),
+      }
     else if (this.pull) this.pull = { ...this.pull, comments: add(this.pull.comments) }
     return true
   }
 
   async setState(state: 'open' | 'closed') {
+    const gen = this.#gen
     const number = this.issue?.summary.number ?? this.pull?.summary.number
     if (!number) return
     const ok = await this.#write((p) => api.forgeSetState(p, number, state).then(() => true))
-    if (!ok) return
+    if (!ok || gen !== this.#gen) return
     ui.notice = {
       kind: 'ok',
       text: state === 'closed' ? `#${number} closed.` : `#${number} reopened.`,
     }
+    const isIssue = !!this.issue
     await Promise.all([
-      this.issue ? this.openIssue(number) : this.openPull(number),
-      this.issue ? issues.reload() : pulls.reload(),
+      isIssue ? this.openIssue(number) : this.openPull(number),
+      isIssue ? issues.reload() : pulls.reload(),
+      board.loaded ? board.load() : Promise.resolve(),
     ])
   }
 
   async review(event: ReviewEvent, body: string): Promise<boolean> {
+    const gen = this.#gen
     const number = this.pull?.summary.number
     if (!number) return false
     const ok = await this.#write((p) => api.forgeReview(p, number, event, body).then(() => true))
     if (!ok) return false
+    if (gen !== this.#gen) return true
     ui.notice = {
       kind: 'ok',
       text:
@@ -309,6 +356,7 @@ class ForgeDetail {
     body: string,
     inReplyTo: number | null,
   ): Promise<boolean> {
+    const gen = this.#gen
     const pull = this.pull
     if (!pull) return false
     const rc = await this.#write((p) =>
@@ -323,7 +371,7 @@ class ForgeDetail {
         inReplyTo,
       ),
     )
-    if (!rc || this.pull?.summary.number !== pull.summary.number) return !!rc
+    if (!rc || gen !== this.#gen || this.pull?.summary.number !== pull.summary.number) return !!rc
     this.pull = { ...this.pull, review_comments: [...this.pull.review_comments, rc] }
     return true
   }

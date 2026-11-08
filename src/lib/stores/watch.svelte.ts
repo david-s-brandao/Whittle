@@ -8,7 +8,7 @@ interface Pending {
   git: boolean
 }
 
-/** Keeps the UI in sync with changes made outside Knife (editor, terminal, other tools). */
+/** Keeps the UI in sync with changes made outside Whittle (editor, terminal, other tools). */
 class Watch {
   error = $state<string | null>(null)
   #pending: Pending | null = null

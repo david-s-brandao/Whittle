@@ -113,6 +113,11 @@ Plus a **Changes** view: unstaged / staged file lists, diff, and a commit messag
 - [x] Stash: create, apply, pop, drop
 - [x] Merge, and rebase onto a branch
 - [x] Merge-conflict view: list conflicted files, use ours/theirs, open in an external editor, mark resolved
+- [x] Built-in merge conflict editor: side-by-side current/incoming per conflict, pick or combine, edit the result, save and stage
+- [x] Conflict editor polish: session drafts per repository/file, undo/redo while editing, live full-result preview, stale-draft detection and rebase-aware side labels
+- [x] Left-aligned folder-style repository navigation with keyboard selection and change/conflict indicators; responsive conflict workspace and commit blocking while conflicts remain
+- [x] Conflict workflow: save with `Ctrl+S`, optionally advance to the next conflicted file, filter files by path
+- [x] Commit productivity: session drafts per project and conventional-commit type helpers that preserve scope, breaking-change flag and body
 - [x] Search commits (message, author, hash)
 - [x] Keyboard shortcuts panel (`?`)
 
@@ -134,6 +139,9 @@ Plus a **Changes** view: unstaged / staged file lists, diff, and a commit messag
 - [x] **Issues** tab: list with open/closed/all filter and search, read the full thread (markdown), comment, close/reopen
 - [x] **Pull requests** tab: list, conversation (comments + reviews), files changed with inline comment threads, submit a review (comment / approve / request changes), close/reopen, check out locally
 - [x] Sign-in without storing secrets in files: system keyring for pasted tokens, or the existing GitHub CLI login
+- [x] GitHub browser shortcuts in the command palette: repository, Actions/CI, new issue and new PR from the current branch
+- [x] Centered issue/PR discussions and composers, per-thread session drafts, quote replies, Markdown formatting tools, jump-to-comment and in-place discussion refresh
+- [x] PR file filtering and stale-response protection when navigating between discussions
 - [ ] GitLab / Bitbucket support
 - [ ] Merge a pull request from the app
 
@@ -141,13 +149,25 @@ Plus a **Changes** view: unstaged / staged file lists, diff, and a commit messag
 
 ## Extra ideas
 
-- **Quick actions bar** (`Ctrl+K`): a command palette for "new branch", "push", "stash" and so on.
+- [x] **Quick actions bar** (`Ctrl+K`): searchable command palette for Git operations, views, projects, tools and GitHub browser actions; keyboard navigation and context-aware availability.
 - **Dirty badges** in the project switcher, showing uncommitted changes at a glance.
-- **Auto-fetch** in the background every N minutes (configurable), with an ahead/behind count on the branch button.
-- **Commit message helpers**: subject-length counter, conventional-commit prefixes.
+- [x] **Auto-fetch** in the background every 5 minutes by default; configurable in Settings → Git (off / 1 / 5 / 10 / 15 / 30 / 60 minutes). Applies to the active repository while the app is running. Waits during Git operations, skips while offline, avoids overlapping syncs and backs off on errors. Status bar shows last fetch, errors, ahead/behind and a session pause toggle. Successful manual fetch/pull resets the timer.
+- [x] **Commit message helpers**: subject-length counter, conventional-commit prefixes.
 - **Undo toast** after risky-but-reversible actions (e.g. "Branch deleted — Undo", using the reflog).
 - **Drag & drop**: drag a branch onto another to merge or rebase.
 - **First-run screen**: open, clone, or pick from recently detected repos in `~/projects`, `~/code` and similar folders.
+
+---
+
+### Daily workflow additions
+
+- Repository sections use folder-style tabs at the left. Focus the selected tab and use Left/Right or Home/End to switch sections.
+- Issue/PR conversations and comment composers use a centered reading column. “Write a comment” jumps to the composer; “Quote reply” adds a quoted response. Drafts survive switching threads/views within the session. Use the formatting toolbar or Ctrl+B / Ctrl+I inside the composer; Ctrl+Enter posts the comment. Refresh discussions in place from their header, and filter PR files by path.
+- Press `Ctrl+K` or the toolbar search button to find an action. GitHub browser actions appear for detected GitHub repositories; creating a PR opens the comparison page for the current branch (push the branch first).
+- Click the last-fetch text in the bottom status bar to fetch immediately or retry a failure. Click the auto-fetch interval to pause/resume for this session; change the persisted interval in Settings → Git.
+- In Changes, filter by path to operate on matching files. Bulk stage/unstage/discard buttons explicitly target the filtered list.
+- Commit messages and conflict resolutions are retained in memory when switching projects/views during the session. Closing the app clears these drafts.
+- In the conflict editor, `Ctrl+S` saves and stages a fully resolved file. “After saving, open the next conflicted file” is enabled by default and can be turned off.
 
 ---
 

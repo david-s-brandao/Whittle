@@ -1,9 +1,20 @@
 import type { CommitInfo } from '../types'
 
+function savedView(): 'list' | 'board' | 'table' {
+  try {
+    const v = localStorage.getItem('whittle.issuesView')
+    return v === 'board' || v === 'table' ? v : 'list'
+  } catch {
+    return 'list'
+  }
+}
+
 /** Small cross-component UI state. */
 class Ui {
   /** Main area tab. */
   view = $state<'history' | 'changes' | 'issues' | 'pulls'>('history')
+  /** How the Issues tab shows issues: the classic list, a board of columns, or a table. */
+  issuesView = $state<'list' | 'board' | 'table'>(savedView())
   branchSwitcherOpen = $state(false)
   stashDialogOpen = $state(false)
   /** Right-click menu on a commit. */
@@ -17,6 +28,7 @@ class Ui {
   fileView = $state<{ path: string; rev: string | null; tab: 'blame' | 'history' } | null>(null)
   shortcutsOpen = $state(false)
   settingsOpen = $state(false)
+  commandPaletteOpen = $state(false)
   /** Right-click / "more" menu of a branch, positioned in window coordinates. */
   branchMenu = $state<{
     name: string

@@ -4,7 +4,10 @@
   import { detail, forge, issues, pulls } from '../stores/forge.svelte'
   import ConnectPanel from './ConnectPanel.svelte'
   import Icon from './Icon.svelte'
+  import IssueBoard from './IssueBoard.svelte'
   import IssueDetailView from './IssueDetailView.svelte'
+  import IssueViewSwitch from './IssueViewSwitch.svelte'
+  import { ui } from '../stores/ui.svelte'
   import LabelChip from './LabelChip.svelte'
   import PullDetailView from './PullDetailView.svelte'
   import StateIcon from './StateIcon.svelte'
@@ -61,10 +64,15 @@
       <p class="mt-3 text-muted">{s.message}</p>
     </div>
   </div>
+{:else if s && kind === 'issues' && ui.issuesView !== 'list'}
+  <IssueBoard />
 {:else if s}
   <div class="flex h-full min-h-0">
-    <aside class="flex w-[25rem] shrink-0 flex-col border-r border-border bg-surface-2">
+    <aside
+      class="flex w-[18rem] shrink-0 flex-col border-r border-border bg-surface-2 xl:w-[22rem]"
+    >
       <div class="space-y-2 border-b border-border p-3">
+        {#if kind === 'issues'}<IssueViewSwitch />{/if}
         <div class="flex items-center gap-2">
           <div
             class="flex rounded-md border border-border bg-surface p-0.5 text-[12px] font-medium"

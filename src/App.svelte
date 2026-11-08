@@ -4,6 +4,9 @@
   import { api } from './lib/api'
   import ForgeView from './lib/components/ForgeView.svelte'
   import TabBar from './lib/components/TabBar.svelte'
+  import RepositoryStatus from './lib/components/RepositoryStatus.svelte'
+  import RepositoryNavigation from './lib/components/RepositoryNavigation.svelte'
+  import CommandPalette from './lib/components/CommandPalette.svelte'
   import SettingsDialog from './lib/components/SettingsDialog.svelte'
   import InteractiveRebaseDialog from './lib/components/InteractiveRebaseDialog.svelte'
   import FileViewer from './lib/components/FileViewer.svelte'
@@ -33,6 +36,7 @@
   import { repo } from './lib/stores/repo.svelte'
   import { search } from './lib/stores/search.svelte'
   import { settings } from './lib/stores/settings.svelte'
+  import { board } from './lib/stores/issueBoard.svelte'
   import { detail, forge, issues, pulls } from './lib/stores/forge.svelte'
   import { sync } from './lib/stores/sync.svelte'
   import { tabs } from './lib/stores/tabs.svelte'
@@ -42,6 +46,7 @@
   let switcherOpen = $state(false)
 
   onMount(() => {
+    const stopAutoFetch = sync.startAutoFetch()
     settings.load()
     projects.refresh().then(() => tabs.restoreSession(projects.list.map((p) => p.path)))
     const unlisten = api.onProgress((op, line) => {
@@ -50,6 +55,7 @@
     })
     const unwatch = api.onRepoChanged((e) => watch.onChanged(e))
     return () => {
+      stopAutoFetch()
       unlisten.then((f) => f())
       unwatch.then((f) => f())
     }
@@ -63,6 +69,7 @@
       forge.reset()
       issues.reset()
       pulls.reset()
+      board.reset()
       detail.clear()
       forge.load()
       search.clear()
@@ -94,6 +101,13 @@
   }
 
   function onkeydown(e: KeyboardEvent) {
+    if (e.defaultPrevented) return
+    if (e.target instanceof Element && e.target.closest('[role="dialog"]')) return
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault()
+      ui.commandPaletteOpen = !ui.commandPaletteOpen
+      return
+    }
     if (e.key === '?' && !e.ctrlKey && !e.metaKey && !typingInField(e)) {
       e.preventDefault()
       ui.shortcutsOpen = !ui.shortcutsOpen
@@ -101,7 +115,11 @@
     }
     if (!(e.ctrlKey || e.metaKey)) return
     const k = e.key.toLowerCase()
-    if (e.key === 'Tab') {
+    const views = ['history', 'changes', 'issues', 'pulls'] as const
+    if (projects.current && /^[1-4]$/.test(e.key) && !e.shiftKey && !e.altKey) {
+      e.preventDefault()
+      ui.view = views[Number(e.key) - 1]
+    } else if (e.key === 'Tab') {
       e.preventDefault()
       tabs.cycle(e.shiftKey ? -1 : 1)
     } else if (k === 'w' && projects.current) {
@@ -118,13 +136,6 @@
       ui.branchSwitcherOpen = !ui.branchSwitcherOpen
     }
   }
-
-  const viewTabs = [
-    { id: 'history', label: 'History', icon: 'history' },
-    { id: 'changes', label: 'Changes', icon: 'changes' },
-    { id: 'issues', label: 'Issues', icon: 'issue' },
-    { id: 'pulls', label: 'Pull requests', icon: 'pr' },
-  ] as const
 </script>
 
 <svelte:window {onkeydown} onfocus={() => changes.refresh()} />
@@ -145,7 +156,13 @@
       <div class="mx-1 h-5 w-px bg-border"></div>
       <Toolbar />
     {/if}
-    <div class="ml-auto flex items-center gap-1">
+    <div class="ml-auto flex shrink-0 items-center gap-1">
+      <button
+        class="btn h-8"
+        title="Quick actions (Ctrl+K)"
+        onclick={() => (ui.commandPaletteOpen = true)}
+        ><Icon name="search" size={14} /><span class="kbd">Ctrl K</span></button
+      >
       {#if projects.current}
         <button
           class="icon-btn"
@@ -182,27 +199,14 @@
     {#if projects.current}
       <Sidebar />
       <main class="flex min-w-0 flex-1 flex-col">
-        <div class="flex h-10 shrink-0 items-end gap-1 border-b border-border px-3">
-          {#each viewTabs as t (t.id)}
-            <button
-              class="-mb-px flex h-10 items-center gap-2 border-b-2 px-3 text-[13px] font-medium transition-colors {ui.view ===
-              t.id
-                ? 'border-accent text-fg'
-                : 'border-transparent text-muted hover:text-fg'}"
-              onclick={() => (ui.view = t.id)}
-            >
-              <Icon name={t.icon} size={15} />
-              {t.label}
-              {#if t.id === 'changes'}
-                <span
-                  class="chip {changes.total ? 'chip-accent' : ''}"
-                  title="{changes.total} changed files">{changes.total}</span
-                >
-              {/if}
-            </button>
-          {/each}
-        </div>
-        <div class="min-h-0 flex-1">
+        <RepositoryNavigation />
+        <div
+          id="repository-panel"
+          role="tabpanel"
+          aria-labelledby={`folder-${ui.view}`}
+          tabindex="0"
+          class="min-h-0 flex-1 outline-none"
+        >
           {#if ui.view === 'history'}<HistoryView />{:else if ui.view === 'changes'}<ChangesView
             />{:else}<ForgeView kind={ui.view} />{/if}
         </div>
@@ -211,9 +215,11 @@
       <main class="min-w-0 flex-1"><Welcome /></main>
     {/if}
   </div>
+  {#if projects.current}<RepositoryStatus />{/if}
 </div>
 
 <SyncStatus />
+<CommandPalette onprojects={() => (switcherOpen = true)} />
 <ProjectSwitcher bind:open={switcherOpen} />
 <BranchSwitcher />
 <BranchMenu />

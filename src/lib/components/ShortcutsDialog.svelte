@@ -6,11 +6,13 @@
     {
       title: 'General',
       items: [
+        { keys: ['Ctrl', 'K'], label: 'Quick actions (Git, navigation, tools and GitHub)' },
         { keys: ['Ctrl', 'P'], label: 'Switch project' },
         { keys: ['Ctrl', 'B'], label: 'Switch or create branch' },
         { keys: ['Ctrl', 'T'], label: 'Open another repository in a new tab' },
         { keys: ['Ctrl', 'W'], label: 'Close the current tab' },
         { keys: ['Ctrl', 'Tab'], label: 'Next tab (add Shift for previous)' },
+        { keys: ['Ctrl', '1–4'], label: 'Go to History, Changes, Issues or Pull requests' },
         { keys: ['?'], label: 'Show this panel' },
         { keys: ['Esc'], label: 'Close a dialog, or clear the search' },
       ],
@@ -19,12 +21,19 @@
       title: 'History',
       items: [
         { keys: ['Ctrl', 'F'], label: 'Search commits (message, author or hash)' },
+        {
+          keys: ['↑', '↓'],
+          label: 'Select the previous / next commit (also PgUp, PgDn, Home, End)',
+        },
         { keys: ['Esc'], label: 'Clear the search box' },
       ],
     },
     {
       title: 'Changes',
-      items: [{ keys: ['Ctrl', 'Enter'], label: 'Commit (while typing the message)' }],
+      items: [
+        { keys: ['Ctrl', 'Enter'], label: 'Commit (while typing the message)' },
+        { keys: ['Ctrl', 'S'], label: 'Save and stage the resolved conflict file' },
+      ],
     },
     {
       title: 'In dialogs and lists',
@@ -35,7 +44,8 @@
     },
   ]
   const tips = [
-    'Double-click a branch in the sidebar to check it out.',
+    'Click a branch in the sidebar to find it in the history; double-click to check it out.',
+    'Double-click a changed file to stage or unstage it.',
     'Right-click a branch (or use ⋯) to merge, rebase or delete it.',
     'Drag the line above the commit details to resize that panel.',
     'In Changes, tick lines in a diff to stage just those lines.',

@@ -1218,7 +1218,7 @@ pub fn classify(raw: &str, has_ssh_agent: bool) -> SyncError {
         || has("returned error: 401")
         || has("returned error: 403")
     {
-        return err("auth_https", "Authentication failed. Knife can't ask for a password here, so set up a git credential helper (for example `git config --global credential.helper libsecret`) and sign in once, or use a personal access token.", raw);
+        return err("auth_https", "Authentication failed. Whittle can't ask for a password here, so set up a git credential helper (for example `git config --global credential.helper libsecret`) and sign in once, or use a personal access token.", raw);
     }
     if has("could not resolve host")
         || has("network is unreachable")

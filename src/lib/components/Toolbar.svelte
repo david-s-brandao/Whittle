@@ -27,7 +27,7 @@
     onclick={() => sync.run(op)}
   >
     <Icon name={icon} size={15} class={sync.running === op ? 'animate-pulse' : 'text-muted'} />
-    {sync.running === op ? opLabel[op] + '…' : label}
+    <span class="max-xl:hidden">{sync.running === op ? opLabel[op] + '…' : label}</span>
     {#if badge}<span class="chip chip-accent">{badge}</span>{/if}
   </button>
 {/snippet}
@@ -97,7 +97,7 @@
     {disabled}
     onclick={() => operations.openDialog(null)}
   >
-    <Icon name="commit" size={15} class="text-muted" /> Merge
+    <Icon name="commit" size={15} class="text-muted" /> <span class="max-xl:hidden">Merge</span>
   </button>
   <div class="mx-1 h-5 w-px bg-border"></div>
   <button
@@ -106,7 +106,7 @@
     disabled={!projects.current}
     onclick={() => (ui.stashDialogOpen = true)}
   >
-    <Icon name="stash" size={15} class="text-muted" /> Stash
+    <Icon name="stash" size={15} class="text-muted" /> <span class="max-xl:hidden">Stash</span>
     {#if changes.total}<span class="chip">{changes.total}</span>{/if}
   </button>
 </div>

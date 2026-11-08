@@ -10,13 +10,17 @@
   import StateIcon from './StateIcon.svelte'
 
   const d = $derived(detail.issue)
+  let composer = $state<ReturnType<typeof Composer>>()
+  const quote = (author: string, body: string) => {
+    void composer?.quote(author, body)
+  }
 </script>
 
 {#if d}
   {@const s = d.summary}
   <div class="flex h-full min-h-0 flex-col">
     <div class="border-b border-border px-6 py-4">
-      <div class="flex items-start gap-3">
+      <div class="flex flex-wrap items-start gap-3">
         <StateIcon kind="issue" state={s.state} size={20} />
         <div class="min-w-0 flex-1">
           <h2 class="selectable text-[17px] leading-snug font-semibold">
@@ -42,38 +46,64 @@
             </div>
           {/if}
         </div>
-        <button
-          class="icon-btn"
-          title="Open on the website"
-          onclick={() =>
-            api.openUrl(s.url).catch((e) => (ui.notice = { kind: 'error', text: String(e) }))}
-          ><Icon name="external" /></button
-        >
+        <div class="flex w-full flex-wrap items-center justify-end gap-1">
+          <button class="btn h-8" onclick={() => composer?.focus()}>Write a comment</button>
+          <button
+            class="icon-btn"
+            title="Refresh discussion"
+            disabled={detail.refreshing || detail.busy}
+            onclick={() => detail.refresh()}
+            ><Icon name="refresh" class={detail.refreshing ? 'animate-spin' : ''} /></button
+          >
+          <button
+            class="icon-btn"
+            title="Open on the website"
+            onclick={() =>
+              api.openUrl(s.url).catch((e) => (ui.notice = { kind: 'error', text: String(e) }))}
+            ><Icon name="external" /></button
+          >
+        </div>
       </div>
     </div>
 
-    <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
-      <CommentCard author={s.author} time={s.created_at} body={d.body} url={s.url} />
-      {#each d.comments as c (c.id)}
+    <div class="min-h-0 flex-1 overflow-y-auto px-4 py-5 lg:px-6">
+      <div class="mx-auto w-full max-w-3xl space-y-4">
         <CommentCard
-          author={c.author}
-          time={c.created_at}
-          body={c.body}
-          association={c.association}
-          url={c.url}
+          author={s.author}
+          time={s.created_at}
+          body={d.body}
+          url={s.url}
+          onquote={quote}
         />
-      {/each}
+        {#each d.comments as c (c.id)}
+          <CommentCard
+            author={c.author}
+            time={c.created_at}
+            body={c.body}
+            association={c.association}
+            url={c.url}
+            onquote={quote}
+          />
+        {/each}
 
-      <div class="max-w-3xl pt-2">
-        <Composer busy={detail.busy} onsubmit={(b) => detail.comment(b)}>
-          <button
-            class="btn btn-outline h-7"
-            disabled={detail.busy}
-            onclick={() => detail.setState(s.state === 'open' ? 'closed' : 'open')}
-          >
-            {s.state === 'open' ? 'Close issue' : 'Reopen issue'}
-          </button>
-        </Composer>
+        <div class="mx-auto w-full pt-2">
+          {#key s.url}
+            <Composer
+              bind:this={composer}
+              draftKey={s.url}
+              busy={detail.busy || detail.refreshing}
+              onsubmit={(b) => detail.comment(b)}
+            >
+              <button
+                class="btn btn-outline h-7"
+                disabled={detail.busy}
+                onclick={() => detail.setState(s.state === 'open' ? 'closed' : 'open')}
+              >
+                {s.state === 'open' ? 'Close issue' : 'Reopen issue'}
+              </button>
+            </Composer>
+          {/key}
+        </div>
       </div>
     </div>
   </div>

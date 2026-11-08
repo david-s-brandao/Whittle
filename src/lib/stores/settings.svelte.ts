@@ -9,6 +9,7 @@ export const defaultSettings: Settings = {
   terminal_cmd: null,
   font_size: 13,
   accent: '#f66008',
+  auto_fetch_minutes: 5,
 }
 
 /** Applies appearance settings to the page: font size and the accent colour tokens. */

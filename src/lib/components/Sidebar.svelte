@@ -209,8 +209,16 @@
       ? 'ring-2 ring-accent'
       : ''} {current ? 'bg-accent/10 font-medium text-accent' : 'hover:bg-hover'}"
     title={current
-      ? `${name} (current branch)${upstream ? ` · tracks ${upstream}` : ''}\nDrag another branch here to merge it`
-      : `${name}: double-click to check out, right-click for more, drag onto the current branch to merge`}
+      ? `${name} (current branch)${upstream ? ` · tracks ${upstream}` : ''}\nClick to find it in the history · drag another branch here to merge it`
+      : `${name}: click to find it in the history, double-click to check out, right-click for more, drag onto the current branch to merge`}
+    onclick={() => {
+      const id = repo.refs.labels.find(
+        (l) => (l.kind === (remote ? 'remote' : 'local') || l.kind === 'head') && l.name === name,
+      )?.id
+      if (!id) return
+      ui.view = 'history'
+      repo.revealCommit(id)
+    }}
     ondblclick={() => !current && branches.checkout(name, remote)}
     oncontextmenu={(e) => {
       e.preventDefault()

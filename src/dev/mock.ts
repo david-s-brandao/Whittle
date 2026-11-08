@@ -331,6 +331,7 @@ const handlers: Record<string, (a: Record<string, unknown>) => unknown> = {
     editor_cmd: null,
     terminal_cmd: null,
     font_size: 13,
+    auto_fetch_minutes: 5,
     accent: '#f66008',
   }),
   forge_status: () => {
@@ -443,6 +444,7 @@ const handlers: Record<string, (a: Record<string, unknown>) => unknown> = {
         head_ref: 'feature/interactive-rebase',
         base_ref: 'main',
         labels: [{ name: 'enhancement', color: 'a2eeef' }],
+        body: 'Closes #42.',
         created_at: new Date(Date.now() - 86400e3).toISOString(),
         updated_at: new Date(Date.now() - 1800e3).toISOString(),
         url: 'https://github.com/david/whittle/pull/57',

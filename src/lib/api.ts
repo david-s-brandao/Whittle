@@ -68,6 +68,8 @@ export const api = {
     invoke<void>('resolve_conflict', { path, file, side }),
   markResolved: (path: string, file: string) => invoke<void>('mark_resolved', { path, file }),
   readFileText: (path: string, file: string) => invoke<string>('read_file_text', { path, file }),
+  saveResolvedFile: (path: string, file: string, content: string) =>
+    invoke<void>('save_resolved_file', { path, file, content }),
   openInEditor: (path: string, file: string) => invoke<void>('open_in_editor', { path, file }),
   cherryPick: (path: string, commit: string) =>
     invoke<OpResult>('cherry_pick_commit', { path, commit }),

@@ -291,6 +291,16 @@ async fn read_file_text(path: String, file: String) -> CmdResult<String> {
     blocking(move || git::read_text(Path::new(&path), &file)).await
 }
 
+/// Saves the merged result of a conflicted file and stages it (marks it resolved).
+#[tauri::command]
+async fn save_resolved_file(path: String, file: String, content: String) -> CmdResult<()> {
+    blocking(move || {
+        git::write_text(Path::new(&path), &file, &content)?;
+        cli::mark_resolved(Path::new(&path), &file).map_err(|e| e.to_string())
+    })
+    .await
+}
+
 /// Opens a file in the user's default editor/application (via `xdg-open`).
 #[tauri::command]
 fn open_in_editor(path: String, file: String) -> CmdResult<()> {
@@ -986,6 +996,7 @@ pub fn run() {
             resolve_conflict,
             mark_resolved,
             read_file_text,
+            save_resolved_file,
             open_in_editor,
             commit_changes,
             head_message,

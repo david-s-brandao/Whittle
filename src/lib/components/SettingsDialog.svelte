@@ -159,6 +159,23 @@
         <section class="space-y-4">
           <div class="section-label">Git</div>
           <div>
+            <label class="label" for="auto-fetch">Automatic fetch</label>
+            <select id="auto-fetch" class="input" bind:value={draft.auto_fetch_minutes}>
+              <option value={0}>Disabled</option>
+              <option value={1}>Every minute</option>
+              <option value={5}>Every 5 minutes (default)</option>
+              <option value={10}>Every 10 minutes</option>
+              <option value={15}>Every 15 minutes</option>
+              <option value={30}>Every 30 minutes</option>
+              <option value={60}>Every hour</option>
+            </select>
+            <p class="mt-1 text-[11.5px] text-faint">
+              Fetches all remotes of the active repository while Whittle is open. Updates
+              incoming/outgoing counts without changing your files. Waits during Git operations and
+              retries less often after errors.
+            </p>
+          </div>
+          <div>
             <label class="label" for="git-path">Git executable</label>
             <div class="flex gap-2">
               <input

@@ -46,6 +46,28 @@
     if (i >= 0) scroller.scrollTop = Math.max(0, i * ROW - height / 2 + ROW / 2)
   })
 
+  function onkeydown(e: KeyboardEvent) {
+    if (e.ctrlKey || e.metaKey || e.altKey || !repo.commits.length) return
+    const page = Math.max(1, Math.floor(height / ROW) - 1)
+    const cur = repo.selected ? repo.commits.findIndex((c) => c.id === repo.selected!.id) : -1
+    let next: number
+    if (e.key === 'ArrowDown') next = cur + 1
+    else if (e.key === 'ArrowUp') next = cur < 0 ? 0 : cur - 1
+    else if (e.key === 'PageDown') next = cur + page
+    else if (e.key === 'PageUp') next = cur - page
+    else if (e.key === 'Home') next = 0
+    else if (e.key === 'End') next = repo.commits.length - 1
+    else return
+    e.preventDefault()
+    next = Math.min(repo.commits.length - 1, Math.max(0, next))
+    if (next === cur || !scroller) return
+    const top = next * ROW
+    if (top < scroller.scrollTop) scroller.scrollTop = top
+    else if (top + ROW > scroller.scrollTop + height) scroller.scrollTop = top + ROW - height
+    repo.selectCommit(repo.commits[next])
+    scroller.focus()
+  }
+
   const x = (lane: number) => PAD + Math.min(lane, MAX_LANES - 1) * LANE_W + LANE_W / 2
 
   /** Repaints the visible slice of the graph. Cheap: only rows on screen are touched. */
@@ -166,10 +188,11 @@
       style="width: {graphW}px; height: {height}px"
     ></canvas>
     <div
-      class="absolute inset-0 overflow-y-auto"
+      class="absolute inset-0 overflow-y-auto outline-none"
       bind:this={scroller}
       bind:clientHeight={height}
       {onscroll}
+      {onkeydown}
       role="listbox"
       tabindex="0"
       aria-label="Commits"
@@ -186,7 +209,10 @@
               ? 'bg-accent/10 shadow-[inset_2px_0_0_var(--accent)]'
               : 'hover:bg-hover'}"
             style="top: {(first + i) * ROW}px; height: {ROW}px; padding-left: {graphW}px"
-            onclick={() => repo.selectCommit(c)}
+            onclick={() => {
+              repo.selectCommit(c)
+              scroller?.focus()
+            }}
             oncontextmenu={(e) => {
               e.preventDefault()
               ui.commitMenu = { commit: c, x: e.clientX, y: e.clientY }
