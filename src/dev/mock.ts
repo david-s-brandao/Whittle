@@ -50,7 +50,7 @@ const subjects = [
   'Update dependencies',
   'Initial commit',
 ]
-const authors = ['David Brandão', 'Ana Ferreira', 'Miguel Santos', 'Sofia Lima']
+const authors = ['Casey Kim', 'Alex Morgan', 'Sam Rivera', 'Jordan Lee']
 // A believable history: main with feature branches that fork and merge back.
 const shape: { n: number; parents: number[] }[] = [
   { n: 0, parents: [1, 4] }, // merge feature/a into main
@@ -263,7 +263,7 @@ const handlers: Record<string, (a: Record<string, unknown>) => unknown> = {
   commit_signature: () => ({
     signed: true,
     status: 'good',
-    signer: 'david@example.com',
+    signer: 'casey@example.com',
     key: 'SHA256:abc',
   }),
   file_blame: () => ({
@@ -281,7 +281,7 @@ const handlers: Record<string, (a: Record<string, unknown>) => unknown> = {
         count: 3,
         id: hashOf(6),
         short_id: hashOf(6).slice(0, 7),
-        author: 'Ana Ferreira',
+        author: 'Alex Morgan',
         time: now - 90 * 86400,
         summary: 'Initial api wrapper',
       },
@@ -290,7 +290,7 @@ const handlers: Record<string, (a: Record<string, unknown>) => unknown> = {
         count: 1,
         id: hashOf(2),
         short_id: hashOf(2).slice(0, 7),
-        author: 'David Brandão',
+        author: 'Casey Kim',
         time: now - 3 * 86400,
         summary: 'Add list projects',
       },
@@ -299,7 +299,7 @@ const handlers: Record<string, (a: Record<string, unknown>) => unknown> = {
         count: 2,
         id: hashOf(0),
         short_id: hashOf(0).slice(0, 7),
-        author: 'Miguel Santos',
+        author: 'Sam Rivera',
         time: now - 3600,
         summary: 'Validate repo on open',
       },
