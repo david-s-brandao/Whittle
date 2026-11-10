@@ -10,6 +10,7 @@
   import { projects } from '../stores/projects.svelte'
   import { repo } from '../stores/repo.svelte'
   import { sync } from '../stores/sync.svelte'
+  import { dock } from '../stores/dock.svelte'
   import { ui } from '../stores/ui.svelte'
   import Icon from './Icon.svelte'
 
@@ -130,8 +131,20 @@
         run: () => Promise.all([repo.refresh(), changes.refresh()]),
       },
       {
+        id: 'dock-terminal',
+        label: 'Show terminal in the bottom panel',
+        group: 'Tools',
+        run: () => dock.select('terminal'),
+      },
+      {
+        id: 'dock-toggle',
+        label: 'Show or hide the bottom panel',
+        group: 'Workspace',
+        run: () => dock.toggle(),
+      },
+      {
         id: 'terminal',
-        label: 'Open in terminal',
+        label: 'Open in terminal window',
         group: 'Tools',
         run: () => api.openTerminal(path),
       },

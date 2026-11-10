@@ -4,6 +4,7 @@ pub mod forge;
 pub mod git;
 pub mod launch;
 pub mod platform;
+pub mod pty;
 pub mod store;
 pub mod watch;
 
@@ -23,6 +24,7 @@ struct AppState {
     log_cache: Mutex<Option<LogCache>>,
     watcher: Mutex<Option<watch::Watcher>>,
     settings: Mutex<Settings>,
+    terminals: pty::Terminals,
 }
 
 type CmdResult<T> = Result<T, String>;
@@ -574,6 +576,39 @@ fn open_terminal(path: String, state: State<AppState>) -> CmdResult<()> {
 }
 
 #[tauri::command]
+fn pty_open(
+    app: tauri::AppHandle,
+    path: String,
+    cols: u16,
+    rows: u16,
+    state: State<AppState>,
+) -> CmdResult<u32> {
+    state
+        .terminals
+        .open(app, Path::new(&path), None, cols, rows)
+}
+
+#[tauri::command]
+fn pty_write(id: u32, data: String, state: State<AppState>) -> CmdResult<()> {
+    state.terminals.write(id, &data)
+}
+
+#[tauri::command]
+fn pty_resize(id: u32, cols: u16, rows: u16, state: State<AppState>) -> CmdResult<()> {
+    state.terminals.resize(id, cols, rows)
+}
+
+#[tauri::command]
+fn pty_close(id: u32, state: State<AppState>) {
+    state.terminals.close(id)
+}
+
+#[tauri::command]
+async fn commit_message(path: String, id: String) -> CmdResult<git::CommitMessage> {
+    blocking(move || git::commit_message(Path::new(&path), &id)).await
+}
+
+#[tauri::command]
 fn open_editor(path: String, state: State<AppState>) -> CmdResult<()> {
     launch::open_editor(
         setting(&state, |s| s.editor_cmd.clone()).as_deref(),
@@ -934,6 +969,7 @@ pub fn run() {
             log_cache: Mutex::new(None),
             watcher: Mutex::new(None),
             settings: Mutex::new(settings),
+            terminals: pty::Terminals::default(),
         })
         .invoke_handler(tauri::generate_handler![
             list_projects,
@@ -973,6 +1009,11 @@ pub fn run() {
             save_settings,
             git_version,
             open_terminal,
+            pty_open,
+            pty_write,
+            pty_resize,
+            pty_close,
+            commit_message,
             open_editor,
             open_folder,
             forge_status,

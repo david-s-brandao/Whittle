@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { dock } from '../stores/dock.svelte'
   import { changes } from '../stores/changes.svelte'
   import { ui } from '../stores/ui.svelte'
   import Icon from './Icon.svelte'
@@ -59,4 +60,15 @@
       {/if}
     </button>
   {/each}
+  {#if ui.view === 'issues' || ui.view === 'pulls'}
+    {@const kind = ui.view}
+    <button
+      class="btn mb-1.5 ml-auto h-7 shrink-0 gap-1.5 px-2 text-[12px]"
+      title="Show {kind === 'issues'
+        ? 'issues'
+        : 'pull requests'} in the bottom panel, with the commits above"
+      onclick={() => dock.pullDown(kind)}
+      ><Icon name="panel-bottom" size={14} /> Move to bottom panel</button
+    >
+  {/if}
 </div>

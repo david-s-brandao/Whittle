@@ -12,6 +12,8 @@
         { keys: ['Ctrl', 'T'], label: 'Open another repository in a new tab' },
         { keys: ['Ctrl', 'W'], label: 'Close the current tab' },
         { keys: ['Ctrl', 'Tab'], label: 'Next tab (add Shift for previous)' },
+        { keys: ['Ctrl', '`'], label: 'Open the terminal in the bottom panel' },
+        { keys: ['Ctrl', 'J'], label: 'Show or hide the bottom panel' },
         { keys: ['Ctrl', '1–4'], label: 'Go to History, Changes, Issues or Pull requests' },
         { keys: ['?'], label: 'Show this panel' },
         { keys: ['Esc'], label: 'Close a dialog, or clear the search' },

@@ -4,6 +4,7 @@ import { ask, open } from '@tauri-apps/plugin-dialog'
 import type {
   Blame,
   CommitInfo,
+  CommitMessage,
   ForgeComment,
   ForgePage,
   ForgeStatus,
@@ -99,6 +100,18 @@ export const api = {
   saveSettings: (settings: Settings) => invoke<Settings>('save_settings', { settings }),
   gitVersion: (path: string | null) => invoke<string>('git_version', { path }),
   openTerminal: (path: string) => invoke<void>('open_terminal', { path }),
+  ptyOpen: (path: string, cols: number, rows: number) =>
+    invoke<number>('pty_open', { path, cols, rows }),
+  ptyWrite: (id: number, data: string) => invoke<void>('pty_write', { id, data }),
+  ptyResize: (id: number, cols: number, rows: number) =>
+    invoke<void>('pty_resize', { id, cols, rows }),
+  ptyClose: (id: number) => invoke<void>('pty_close', { id }),
+  onPtyData: (cb: (id: number, data: string) => void) =>
+    listen<{ id: number; data: string }>('pty-data', (e) => cb(e.payload.id, e.payload.data)),
+  onPtyExit: (cb: (id: number) => void) =>
+    listen<{ id: number }>('pty-exit', (e) => cb(e.payload.id)),
+  commitMessage: (path: string, id: string) =>
+    invoke<CommitMessage>('commit_message', { path, id }),
   openEditor: (path: string) => invoke<void>('open_editor', { path }),
   openFolder: (path: string) => invoke<void>('open_folder', { path }),
   forgeStatus: (path: string) => invoke<ForgeStatus>('forge_status', { path }),

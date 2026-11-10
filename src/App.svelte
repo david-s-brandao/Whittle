@@ -2,6 +2,7 @@
   import { onMount, untrack } from 'svelte'
   import logo from './assets/logo.png'
   import { api } from './lib/api'
+  import Dock from './lib/components/Dock.svelte'
   import ForgeView from './lib/components/ForgeView.svelte'
   import TabBar from './lib/components/TabBar.svelte'
   import RepositoryStatus from './lib/components/RepositoryStatus.svelte'
@@ -31,6 +32,7 @@
   import Toolbar from './lib/components/Toolbar.svelte'
   import Welcome from './lib/components/Welcome.svelte'
   import { changes } from './lib/stores/changes.svelte'
+  import { dock } from './lib/stores/dock.svelte'
   import { clone } from './lib/stores/clone.svelte'
   import { projects } from './lib/stores/projects.svelte'
   import { repo } from './lib/stores/repo.svelte'
@@ -114,6 +116,12 @@
       return
     }
     if (!(e.ctrlKey || e.metaKey)) return
+    if (projects.current && (e.key === '`' || e.key.toLowerCase() === 'j') && !e.shiftKey) {
+      e.preventDefault()
+      if (e.key === '`') dock.show('terminal')
+      else dock.toggle()
+      return
+    }
     const k = e.key.toLowerCase()
     const views = ['history', 'changes', 'issues', 'pulls'] as const
     if (projects.current && /^[1-4]$/.test(e.key) && !e.shiftKey && !e.altKey) {
@@ -165,8 +173,14 @@
       >
       {#if projects.current}
         <button
+          class="icon-btn {dock.open && dock.active === 'terminal' ? 'text-accent' : ''}"
+          title="Terminal inside Whittle (Ctrl+`)"
+          aria-pressed={dock.open && dock.active === 'terminal'}
+          onclick={() => dock.show('terminal')}><Icon name="panel-bottom" /></button
+        >
+        <button
           class="icon-btn"
-          title="Open a terminal in this repository"
+          title="Open a terminal window in this repository"
           onclick={() => launch('terminal')}><Icon name="terminal" /></button
         >
         <button
@@ -206,10 +220,12 @@
           aria-labelledby={`folder-${ui.view}`}
           tabindex="0"
           class="min-h-0 flex-1 outline-none"
+          class:hidden={dock.maximized}
         >
           {#if ui.view === 'history'}<HistoryView />{:else if ui.view === 'changes'}<ChangesView
             />{:else}<ForgeView kind={ui.view} />{/if}
         </div>
+        <Dock />
       </main>
     {:else}
       <main class="min-w-0 flex-1"><Welcome /></main>

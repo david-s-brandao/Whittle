@@ -986,6 +986,43 @@ pub fn merge_preview(path: &Path, source: &str) -> Result<MergePreview, git2::Er
 }
 
 /// Message of HEAD, used to pre-fill the box when amending.
+/// Everything the "Description" tab shows about one commit.
+#[derive(Debug, Serialize)]
+pub struct CommitMessage {
+    /// Full message, trailing whitespace trimmed.
+    pub message: String,
+    pub committer: String,
+    pub committer_email: String,
+    /// Committer time, unix seconds.
+    pub committer_time: i64,
+    /// Branches and tags pointing exactly at this commit.
+    pub refs: Vec<String>,
+}
+
+pub fn commit_message(path: &Path, id: &str) -> Result<CommitMessage, git2::Error> {
+    let repo = git2::Repository::open(path)?;
+    let c = repo.find_commit(git2::Oid::from_str(id)?)?;
+    let cm = c.committer();
+    let mut refs = Vec::new();
+    for r in repo.references()?.flatten() {
+        let Some(name) = r.shorthand() else { continue };
+        if r.is_remote() && name.ends_with("/HEAD") {
+            continue;
+        }
+        if r.peel_to_commit().map(|t| t.id()) == Ok(c.id()) {
+            refs.push(name.to_owned());
+        }
+    }
+    refs.sort();
+    Ok(CommitMessage {
+        message: c.message().unwrap_or("").trim_end().to_owned(),
+        committer: cm.name().unwrap_or("").to_owned(),
+        committer_email: cm.email().unwrap_or("").to_owned(),
+        committer_time: cm.when().seconds(),
+        refs,
+    })
+}
+
 pub fn head_message(path: &Path) -> Result<String, git2::Error> {
     let repo = git2::Repository::open(path)?;
     let c = repo.head()?.peel_to_commit()?;
@@ -1013,6 +1050,24 @@ mod tests {
         let refs: Vec<&git2::Commit> = parents.iter().collect();
         repo.commit(Some("HEAD"), &sig, &sig, name, &tree, &refs)
             .unwrap()
+    }
+
+    #[test]
+    fn commit_message_has_full_body_and_refs() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = git2::Repository::init(dir.path()).unwrap();
+        let sig = git2::Signature::now("A", "a@x.io").unwrap();
+        std::fs::write(dir.path().join("f"), "1").unwrap();
+        let mut idx = repo.index().unwrap();
+        idx.add_path(Path::new("f")).unwrap();
+        let tree = repo.find_tree(idx.write_tree().unwrap()).unwrap();
+        let id = repo
+            .commit(Some("HEAD"), &sig, &sig, "Title\n\nBody line\n", &tree, &[])
+            .unwrap();
+        let m = commit_message(dir.path(), &id.to_string()).unwrap();
+        assert_eq!(m.message, "Title\n\nBody line");
+        assert_eq!(m.committer, "A");
+        assert_eq!(m.refs.len(), 1);
     }
 
     #[test]

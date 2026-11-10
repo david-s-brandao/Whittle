@@ -60,6 +60,15 @@ export interface CommitInfo {
   signed: boolean
 }
 
+export interface CommitMessage {
+  message: string
+  committer: string
+  committer_email: string
+  committer_time: number
+  /** Branches and tags pointing exactly at the commit. */
+  refs: string[]
+}
+
 export interface FileChange {
   path: string
   old_path: string | null
