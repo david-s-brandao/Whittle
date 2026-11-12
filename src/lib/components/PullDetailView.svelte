@@ -7,6 +7,7 @@
   import CommentCard from './CommentCard.svelte'
   import Composer from './Composer.svelte'
   import Icon from './Icon.svelte'
+  import ReviewerPicker from './ReviewerPicker.svelte'
   import LabelChip from './LabelChip.svelte'
   import PatchView from './PatchView.svelte'
   import ReviewDialog from './ReviewDialog.svelte'
@@ -143,6 +144,15 @@
                 >{mergeInfo.text}</span
               >{/if}
           </div>
+          <div class="mt-2 flex items-start gap-2 text-[12px] text-muted">
+            <span class="mt-1 shrink-0">Reviewers</span>
+            <ReviewerPicker
+              selected={s.reviewers}
+              exclude={[s.author]}
+              disabled={detail.busy || s.state !== 'open'}
+              onchange={(n) => detail.setReviewers(n)}
+            />
+          </div>
           {#if s.labels.length}
             <div class="mt-2 flex flex-wrap gap-1.5">
               {#each s.labels as l (l.name)}<LabelChip label={l} />{/each}
@@ -254,7 +264,7 @@
               >
                 <button
                   class="btn btn-outline h-7"
-                  disabled={detail.busy || s.state === 'merged'}
+                  disabled={detail.busy || s.state !== 'open'}
                   onclick={() => detail.setState(s.state === 'open' ? 'closed' : 'open')}
                 >
                   {s.state === 'open'

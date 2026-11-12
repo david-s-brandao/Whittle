@@ -175,6 +175,8 @@ export interface PullSummary {
   head_ref: string
   base_ref: string
   labels: ForgeLabel[]
+  /** People asked to review who haven't yet. */
+  reviewers: string[]
   /** Start of the description (used to find which issues a pull request mentions). */
   body: string
   created_at: string
@@ -233,6 +235,11 @@ export interface PullDetail {
   comments: ForgeComment[]
   reviews: ForgeReview[]
   review_comments: ReviewComment[]
+}
+
+export interface RepoBranches {
+  default_branch: string
+  branches: string[]
 }
 
 export interface PullFile {

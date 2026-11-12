@@ -433,6 +433,12 @@ const handlers: Record<string, (a: Record<string, unknown>) => unknown> = {
       },
     ],
   }),
+  forge_branches: () => ({
+    default_branch: 'main',
+    branches: ['main', 'feature/interactive-rebase', 'feature/tabs', 'fix/watcher'],
+  }),
+  forge_reviewable: () => ['ana-ferreira', 'david-s-brandao', 'miguel-santos'],
+  forge_set_reviewers: (a) => a.reviewers,
   forge_pulls: () => ({
     items: [
       {
@@ -444,6 +450,7 @@ const handlers: Record<string, (a: Record<string, unknown>) => unknown> = {
         head_ref: 'feature/interactive-rebase',
         base_ref: 'main',
         labels: [{ name: 'enhancement', color: 'a2eeef' }],
+        reviewers: ['miguel-santos'],
         body: 'Closes #42.',
         created_at: new Date(Date.now() - 86400e3).toISOString(),
         updated_at: new Date(Date.now() - 1800e3).toISOString(),
@@ -458,6 +465,7 @@ const handlers: Record<string, (a: Record<string, unknown>) => unknown> = {
         head_ref: 'feature/tabs',
         base_ref: 'main',
         labels: [],
+        reviewers: [],
         created_at: new Date(Date.now() - 4 * 86400e3).toISOString(),
         updated_at: new Date(Date.now() - 2 * 86400e3).toISOString(),
         url: 'u',
@@ -471,6 +479,7 @@ const handlers: Record<string, (a: Record<string, unknown>) => unknown> = {
         head_ref: 'fix/watcher',
         base_ref: 'main',
         labels: [{ name: 'performance', color: 'fbca04' }],
+        reviewers: [],
         created_at: new Date(Date.now() - 9 * 86400e3).toISOString(),
         updated_at: new Date(Date.now() - 8 * 86400e3).toISOString(),
         url: 'u',
@@ -488,6 +497,7 @@ const handlers: Record<string, (a: Record<string, unknown>) => unknown> = {
       head_ref: 'feature/interactive-rebase',
       base_ref: 'main',
       labels: [{ name: 'enhancement', color: 'a2eeef' }],
+      reviewers: ['miguel-santos'],
       created_at: new Date(Date.now() - 86400e3).toISOString(),
       updated_at: new Date().toISOString(),
       url: 'https://github.com/david/whittle/pull/57',

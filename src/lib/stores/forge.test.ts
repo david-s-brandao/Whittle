@@ -8,6 +8,10 @@ const mocks = vi.hoisted(() => ({
     forgeSetState: vi.fn(),
     forgeIssues: vi.fn(),
     forgePulls: vi.fn(),
+    forgePull: vi.fn(),
+    forgeCreatePull: vi.fn(),
+    forgeSetReviewers: vi.fn(),
+    forgeReviewable: vi.fn(),
   },
   projects: { current: { path: '/a' } },
   ui: { notice: null },
@@ -98,4 +102,47 @@ it('reloads the issue list, not the PR list, after changing an issue state', asy
   await detail.setState('closed')
   expect(mocks.api.forgeIssues).toHaveBeenCalledOnce()
   expect(mocks.api.forgePulls).not.toHaveBeenCalled()
+})
+
+it('creates a pull request, then reloads the list and opens it', async () => {
+  const summary = {
+    ...issue(7).summary,
+    head_ref: 'f',
+    base_ref: 'main',
+    draft: false,
+    reviewers: [],
+  }
+  mocks.api.forgeCreatePull.mockResolvedValue(summary)
+  mocks.api.forgePull.mockResolvedValue({ summary, comments: [], reviews: [], review_comments: [] })
+  const { detail } = await import('./forge.svelte')
+  expect(await detail.createPull('f', 'main', 'T', 'B', true, ['ana'])).toBe(true)
+  expect(mocks.api.forgeCreatePull).toHaveBeenCalledWith('/a', 'f', 'main', 'T', 'B', true, ['ana'])
+  expect(mocks.api.forgePulls).toHaveBeenCalled()
+  expect(detail.pull?.summary.number).toBe(7)
+})
+
+it('keeps the form open (returns false) when GitHub refuses the pull request', async () => {
+  mocks.api.forgeCreatePull.mockRejectedValue('A pull request already exists')
+  const { detail } = await import('./forge.svelte')
+  expect(await detail.createPull('f', 'main', 'T', '', false, [])).toBe(false)
+  expect(mocks.ui.notice).toMatchObject({ kind: 'error' })
+})
+
+it('updates the open pull request and the list when reviewers change', async () => {
+  const summary = {
+    ...issue(7).summary,
+    head_ref: 'f',
+    base_ref: 'main',
+    draft: false,
+    reviewers: [],
+  }
+  mocks.api.forgePull.mockResolvedValue({ summary, comments: [], reviews: [], review_comments: [] })
+  mocks.api.forgeSetReviewers.mockResolvedValue(['ana', 'bob'])
+  const { detail, pulls } = await import('./forge.svelte')
+  pulls.items = [summary as never]
+  await detail.openPull(7)
+  expect(await detail.setReviewers(['ana', 'bob'])).toBe(true)
+  expect(mocks.api.forgeSetReviewers).toHaveBeenCalledWith('/a', 7, ['ana', 'bob'])
+  expect(detail.pull?.summary.reviewers).toEqual(['ana', 'bob'])
+  expect(pulls.items[0].reviewers).toEqual(['ana', 'bob'])
 })

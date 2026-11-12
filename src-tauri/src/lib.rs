@@ -841,6 +841,56 @@ async fn forge_review_comment(
 }
 
 #[tauri::command]
+async fn forge_branches(path: String) -> CmdResult<forge::github::RepoBranches> {
+    blocking(move || github_for(&path)?.branches().map_err(String::from)).await
+}
+
+/// People who can review and committed in the last 90 days.
+#[tauri::command]
+async fn forge_reviewable(path: String) -> CmdResult<Vec<String>> {
+    blocking(move || {
+        let since = forge::iso_days_ago(90);
+        github_for(&path)?
+            .active_reviewers(&since)
+            .map_err(String::from)
+    })
+    .await
+}
+
+#[tauri::command]
+async fn forge_set_reviewers(
+    path: String,
+    number: u64,
+    reviewers: Vec<String>,
+) -> CmdResult<Vec<String>> {
+    blocking(move || {
+        github_for(&path)?
+            .set_reviewers(number, &reviewers)
+            .map_err(String::from)
+    })
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+#[tauri::command]
+async fn forge_create_pull(
+    path: String,
+    head: String,
+    base: String,
+    title: String,
+    body: String,
+    draft: bool,
+    reviewers: Vec<String>,
+) -> CmdResult<forge::github::PullSummary> {
+    blocking(move || {
+        github_for(&path)?
+            .create_pull(&head, &base, &title, &body, draft, &reviewers)
+            .map_err(String::from)
+    })
+    .await
+}
+
+#[tauri::command]
 async fn checkout_pull(path: String, number: u64) -> Result<String, cli::SyncError> {
     tauri::async_runtime::spawn_blocking(move || cli::checkout_pull(Path::new(&path), number))
         .await
@@ -1024,6 +1074,10 @@ pub fn run() {
             forge_pulls,
             forge_pull,
             forge_pull_files,
+            forge_branches,
+            forge_reviewable,
+            forge_set_reviewers,
+            forge_create_pull,
             forge_comment,
             forge_set_state,
             forge_review,

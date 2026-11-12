@@ -9,11 +9,13 @@
   import IssueViewSwitch from './IssueViewSwitch.svelte'
   import { ui } from '../stores/ui.svelte'
   import LabelChip from './LabelChip.svelte'
+  import NewPullDialog from './NewPullDialog.svelte'
   import PullDetailView from './PullDetailView.svelte'
   import StateIcon from './StateIcon.svelte'
 
   let { kind }: { kind: 'issues' | 'pulls' } = $props()
   let showConnect = $state(false)
+  let newPullOpen = $state(false)
 
   const list = $derived(kind === 'issues' ? issues : pulls)
   const noun = $derived(kind === 'issues' ? 'issues' : 'pull requests')
@@ -73,6 +75,18 @@
     >
       <div class="space-y-2 border-b border-border p-3">
         {#if kind === 'issues'}<IssueViewSwitch />{/if}
+        {#if kind === 'pulls'}
+          <button
+            class="btn btn-primary h-8 w-full font-semibold"
+            disabled={!s.connected}
+            title={s.connected
+              ? 'Open a pull request from one branch into another'
+              : 'Sign in first'}
+            onclick={() => (newPullOpen = true)}
+          >
+            <Icon name="plus" size={14} />New pull request
+          </button>
+        {/if}
         <div class="flex items-center gap-2">
           <div
             class="flex rounded-md border border-border bg-surface p-0.5 text-[12px] font-medium"
@@ -234,3 +248,5 @@
     </section>
   </div>
 {/if}
+
+{#if kind === 'pulls'}<NewPullDialog bind:open={newPullOpen} />{/if}

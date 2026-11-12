@@ -216,6 +216,8 @@ pub struct PullSummary {
     pub head_ref: String,
     pub base_ref: String,
     pub labels: Vec<Label>,
+    /// People whose review has been requested and hasn't been given yet.
+    pub reviewers: Vec<String>,
     /// Start of the description; enough to find "fixes #12" style links.
     pub body: String,
     pub created_at: String,
@@ -286,6 +288,13 @@ pub struct PullDetail {
     pub review_comments: Vec<ReviewComment>,
 }
 
+/// Branches on the remote and which one new pull requests normally target.
+#[derive(Debug, Serialize, PartialEq, Eq)]
+pub struct RepoBranches {
+    pub default_branch: String,
+    pub branches: Vec<String>,
+}
+
 #[derive(Debug, Serialize, PartialEq, Eq)]
 pub struct PullFile {
     pub filename: String,
@@ -320,6 +329,16 @@ fn labels(v: &Value) -> Vec<Label> {
                     name: s(&l["name"]),
                     color: s(&l["color"]),
                 })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn logins(v: &Value) -> Vec<String> {
+    v.as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|u| u["login"].as_str().map(str::to_string))
                 .collect()
         })
         .unwrap_or_default()
@@ -363,6 +382,7 @@ fn pull_summary(v: &Value) -> PullSummary {
         head_ref: s(&v["head"]["ref"]),
         base_ref: s(&v["base"]["ref"]),
         labels: labels(v),
+        reviewers: logins(&v["requested_reviewers"]),
         body: s(&v["body"]).chars().take(2000).collect(),
         created_at: s(&v["created_at"]),
         updated_at: s(&v["updated_at"]),
@@ -661,6 +681,118 @@ impl GitHub {
             Some(&payload),
         )?;
         Ok(review_comment(&v))
+    }
+
+    /// Branch names on the remote plus the default branch.
+    pub fn branches(&self) -> Res<RepoBranches> {
+        let r = self.repo();
+        let (info, _) = self.client.get(&r)?;
+        let branches = self
+            .client
+            .get_all(&format!("{r}/branches"), 5)?
+            .iter()
+            .map(|b| s(&b["name"]))
+            .filter(|n| !n.is_empty())
+            .collect();
+        Ok(RepoBranches {
+            default_branch: s(&info["default_branch"]),
+            branches,
+        })
+    }
+
+    /// People who can review *and* have committed since `since` (an ISO-8601 timestamp).
+    /// GitHub refuses reviewers without access to the repository, so the commit authors are
+    /// intersected with the repository's assignable users.
+    pub fn active_reviewers(&self, since: &str) -> Res<Vec<String>> {
+        let r = self.repo();
+        let allowed: std::collections::HashSet<String> = self
+            .client
+            .get_all(&format!("{r}/assignees"), 5)?
+            .iter()
+            .map(|u| s(&u["login"]))
+            .collect();
+        let mut seen = std::collections::HashSet::new();
+        let mut out = Vec::new();
+        for c in self
+            .client
+            .get_all(&format!("{r}/commits?since={}", enc(since)), 3)?
+        {
+            // `author` is null when the commit email isn't linked to a GitHub account
+            let login = s(&c["author"]["login"]);
+            if !login.is_empty() && allowed.contains(&login) && seen.insert(login.clone()) {
+                out.push(login);
+            }
+        }
+        Ok(out)
+    }
+
+    /// Make `reviewers` the set of people asked to review a pull request (anyone's, not only
+    /// your own): new names are requested, dropped names have their request withdrawn.
+    pub fn set_reviewers(&self, number: u64, reviewers: &[String]) -> Res<Vec<String>> {
+        if reviewers
+            .iter()
+            .any(|a| a.trim().is_empty() || a.contains('/'))
+        {
+            return Err(ForgeError::Invalid("Unknown person.".into()));
+        }
+        let url = format!("{}/pulls/{number}", self.repo());
+        let (pull, _) = self.client.get(&url)?;
+        let current = logins(&pull["requested_reviewers"]);
+        let add: Vec<&String> = reviewers.iter().filter(|r| !current.contains(r)).collect();
+        let remove: Vec<&String> = current.iter().filter(|c| !reviewers.contains(c)).collect();
+        let mut result = current.clone();
+        let endpoint = format!("{url}/requested_reviewers");
+        if !add.is_empty() {
+            let (v, _) = self
+                .client
+                .call("POST", &endpoint, Some(&json!({ "reviewers": add })))?;
+            result = logins(&v["requested_reviewers"]);
+        }
+        if !remove.is_empty() {
+            let (v, _) =
+                self.client
+                    .call("DELETE", &endpoint, Some(&json!({ "reviewers": remove })))?;
+            result = logins(&v["requested_reviewers"]);
+        }
+        Ok(result)
+    }
+
+    /// Open a pull request from `head` into `base`, optionally asking people to review it.
+    pub fn create_pull(
+        &self,
+        head: &str,
+        base: &str,
+        title: &str,
+        body: &str,
+        draft: bool,
+        reviewers: &[String],
+    ) -> Res<PullSummary> {
+        if title.trim().is_empty() {
+            return Err(ForgeError::Invalid("Give the pull request a title.".into()));
+        }
+        if head.trim().is_empty() || base.trim().is_empty() {
+            return Err(ForgeError::Invalid("Choose both branches.".into()));
+        }
+        if head == base {
+            return Err(ForgeError::Invalid(
+                "Pick two different branches: a branch can't be merged into itself.".into(),
+            ));
+        }
+        let (v, _) = self.client.call(
+            "POST",
+            &format!("{}/pulls", self.repo()),
+            Some(&json!({
+                "title": title.trim(), "head": head, "base": base, "body": body, "draft": draft
+            })),
+        )?;
+        let mut summary = pull_summary(&v);
+        if !reviewers.is_empty() {
+            // The pull request exists now: a failure here shouldn't hide that.
+            if let Ok(r) = self.set_reviewers(summary.number, reviewers) {
+                summary.reviewers = r;
+            }
+        }
+        Ok(summary)
     }
 }
 
@@ -996,6 +1128,89 @@ mod tests {
         );
         assert_eq!(body(4), json!({"body": "agreed", "in_reply_to": 5}));
         assert_eq!(log[0].headers["content-type"], "application/json");
+    }
+
+    #[test]
+    fn creates_a_pull_request_and_requests_reviewers() {
+        let pr = |reviewers: Value| {
+            json!({"number": 9, "title": "T", "state": "open", "draft": false, "user": {"login": "me"},
+                   "head": {"ref": "feat"}, "base": {"ref": "main"}, "labels": [],
+                   "requested_reviewers": reviewers,
+                   "created_at": "t", "updated_at": "t", "html_url": "u"})
+        };
+        let (base, log) = fake(vec![
+            ok(pr(json!([]))),
+            ok(pr(json!([]))),
+            ok(pr(json!([{"login": "ana"}]))),
+        ]);
+        let g = gh(&base, Some("t"));
+        let p = g
+            .create_pull("feat", "main", " T ", "body", true, &["ana".to_string()])
+            .unwrap();
+        assert_eq!((p.number, p.reviewers), (9, vec!["ana".to_string()]));
+        let log = log.lock().unwrap();
+        assert_eq!(log[0].path, "/repos/octo/hello/pulls");
+        assert_eq!(
+            serde_json::from_str::<Value>(&log[0].body).unwrap(),
+            json!({"title": "T", "head": "feat", "base": "main", "body": "body", "draft": true})
+        );
+        assert_eq!(
+            (log[2].method.as_str(), log[2].path.as_str()),
+            ("POST", "/repos/octo/hello/pulls/9/requested_reviewers")
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&log[2].body).unwrap(),
+            json!({"reviewers": ["ana"]})
+        );
+    }
+
+    #[test]
+    fn reviewers_are_added_and_withdrawn_on_someone_elses_pull_request() {
+        let with = |r: Value| json!({"requested_reviewers": r});
+        let (base, log) = fake(vec![
+            ok(with(json!([{"login": "ana"}, {"login": "bob"}]))),
+            ok(with(
+                json!([{"login": "ana"}, {"login": "bob"}, {"login": "cy"}]),
+            )),
+            ok(with(json!([{"login": "bob"}, {"login": "cy"}]))),
+        ]);
+        let got = gh(&base, Some("t"))
+            .set_reviewers(4, &["bob".to_string(), "cy".to_string()])
+            .unwrap();
+        assert_eq!(got, vec!["bob", "cy"]);
+        let log = log.lock().unwrap();
+        let body = |i: usize| serde_json::from_str::<Value>(&log[i].body).unwrap();
+        assert_eq!(log[1].method, "POST");
+        assert_eq!(body(1), json!({"reviewers": ["cy"]}));
+        assert_eq!(log[2].method, "DELETE");
+        assert_eq!(body(2), json!({"reviewers": ["ana"]}));
+    }
+
+    #[test]
+    fn bad_pull_requests_are_refused_before_any_call() {
+        let g = gh("http://127.0.0.1:1", None);
+        assert!(g.create_pull("a", "a", "T", "", false, &[]).is_err());
+        assert!(g.create_pull("a", "b", "  ", "", false, &[]).is_err());
+        assert!(g.create_pull("", "b", "T", "", false, &[]).is_err());
+        assert!(g.set_reviewers(1, &["a/b".to_string()]).is_err());
+    }
+
+    #[test]
+    fn only_active_committers_who_can_review_are_offered() {
+        let (base, _) = fake(vec![
+            ok(json!([{"login": "ana"}, {"login": "bob"}, {"login": "cy"}])),
+            ok(json!([
+                {"author": {"login": "ana"}},
+                {"author": null},
+                {"author": {"login": "ana"}},
+                {"author": {"login": "stranger"}},
+                {"author": {"login": "cy"}},
+            ])),
+        ]);
+        let people = gh(&base, Some("t"))
+            .active_reviewers("2026-01-01T00:00:00Z")
+            .unwrap();
+        assert_eq!(people, vec!["ana", "cy"]);
     }
 
     #[test]

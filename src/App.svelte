@@ -39,7 +39,7 @@
   import { search } from './lib/stores/search.svelte'
   import { settings } from './lib/stores/settings.svelte'
   import { board } from './lib/stores/issueBoard.svelte'
-  import { detail, forge, issues, pulls } from './lib/stores/forge.svelte'
+  import { detail, forge, issues, people, pulls } from './lib/stores/forge.svelte'
   import { sync } from './lib/stores/sync.svelte'
   import { tabs } from './lib/stores/tabs.svelte'
   import { ui } from './lib/stores/ui.svelte'
@@ -71,6 +71,7 @@
       forge.reset()
       issues.reset()
       pulls.reset()
+      people.reset()
       board.reset()
       detail.clear()
       forge.load()

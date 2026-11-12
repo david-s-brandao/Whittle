@@ -13,6 +13,7 @@ import type {
   PullDetail,
   PullFile,
   PullSummary,
+  RepoBranches,
   ReviewComment,
   ReviewEvent,
   FileChange,
@@ -127,6 +128,28 @@ export const api = {
   forgePull: (path: string, number: number) => invoke<PullDetail>('forge_pull', { path, number }),
   forgePullFiles: (path: string, number: number) =>
     invoke<PullFile[]>('forge_pull_files', { path, number }),
+  forgeBranches: (path: string) => invoke<RepoBranches>('forge_branches', { path }),
+  forgeReviewable: (path: string) => invoke<string[]>('forge_reviewable', { path }),
+  forgeSetReviewers: (path: string, number: number, reviewers: string[]) =>
+    invoke<string[]>('forge_set_reviewers', { path, number, reviewers }),
+  forgeCreatePull: (
+    path: string,
+    head: string,
+    base: string,
+    title: string,
+    body: string,
+    draft: boolean,
+    reviewers: string[],
+  ) =>
+    invoke<PullSummary>('forge_create_pull', {
+      path,
+      head,
+      base,
+      title,
+      body,
+      draft,
+      reviewers,
+    }),
   forgeComment: (path: string, number: number, body: string) =>
     invoke<ForgeComment>('forge_comment', { path, number, body }),
   forgeSetState: (path: string, number: number, state: 'open' | 'closed') =>

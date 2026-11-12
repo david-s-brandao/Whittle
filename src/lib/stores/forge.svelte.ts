@@ -83,6 +83,41 @@ class Forge {
 
 export const forge = new Forge()
 
+/** Who can be asked to review: people with access who committed recently. */
+class People {
+  list = $state.raw<string[]>([])
+  loading = $state(false)
+  error = $state<string | null>(null)
+  #path: string | null = null
+
+  async load(force = false) {
+    const path = projects.current?.path
+    if (!path || this.loading) return
+    if (!force && this.#path === path && !this.error) return
+    this.loading = true
+    this.error = null
+    try {
+      const list = await api.forgeReviewable(path)
+      if (projects.current?.path === path) {
+        this.list = list
+        this.#path = path
+      }
+    } catch (e) {
+      this.error = asText(e)
+    } finally {
+      this.loading = false
+    }
+  }
+
+  reset() {
+    this.list = []
+    this.error = null
+    this.#path = null
+  }
+}
+
+export const people = new People()
+
 type Filter = 'open' | 'closed' | 'all'
 
 /** A paged, filterable, searchable list of issues or pull requests. */
@@ -373,6 +408,41 @@ class ForgeDetail {
     )
     if (!rc || gen !== this.#gen || this.pull?.summary.number !== pull.summary.number) return !!rc
     this.pull = { ...this.pull, review_comments: [...this.pull.review_comments, rc] }
+    return true
+  }
+
+  /** Replace the people asked to review the open pull request (whoever opened it). */
+  async setReviewers(reviewers: string[]): Promise<boolean> {
+    const gen = this.#gen
+    const pull = this.pull
+    if (!pull) return false
+    const number = pull.summary.number
+    const saved = await this.#write((p) => api.forgeSetReviewers(p, number, reviewers))
+    if (!saved) return false
+    if (gen === this.#gen && this.pull) {
+      this.pull = { ...this.pull, summary: { ...this.pull.summary, reviewers: saved } }
+    }
+    pulls.items = pulls.items.map((i) => (i.number === number ? { ...i, reviewers: saved } : i))
+    return true
+  }
+
+  /** Open a pull request, then show it. Returns true when created. */
+  async createPull(
+    head: string,
+    base: string,
+    title: string,
+    body: string,
+    draft: boolean,
+    reviewers: string[],
+  ): Promise<boolean> {
+    const created = await this.#write((p) =>
+      api.forgeCreatePull(p, head, base, title, body, draft, reviewers),
+    )
+    if (!created) return false
+    ui.notice = { kind: 'ok', text: `Pull request #${created.number} created.` }
+    pulls.state = 'open'
+    pulls.query = ''
+    await Promise.all([pulls.reload(), this.openPull(created.number)])
     return true
   }
 

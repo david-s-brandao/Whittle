@@ -23,6 +23,7 @@ const pr = (number: number, o: Partial<PullSummary> = {}): PullSummary => ({
   head_ref: 'x',
   base_ref: 'main',
   labels: [],
+  reviewers: [],
   body: '',
   created_at: '',
   updated_at: '',
