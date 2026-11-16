@@ -1,10 +1,12 @@
 <script lang="ts">
   import { dock, DOCK_MIN, type DockTab } from '../stores/dock.svelte'
+  import { logs } from '../stores/logs.svelte'
   import { repo } from '../stores/repo.svelte'
   import CommitDetails from './CommitDetails.svelte'
   import DescriptionPanel from './DescriptionPanel.svelte'
   import ForgeView from './ForgeView.svelte'
   import Icon, { type IconName } from './Icon.svelte'
+  import LogsPanel from './LogsPanel.svelte'
   import TerminalPanel from './TerminalPanel.svelte'
 
   const META: Record<DockTab, { label: string; icon: IconName; hint: string }> = {
@@ -19,6 +21,11 @@
       hint: 'Full message and details of the selected commit',
     },
     terminal: { label: 'Terminal', icon: 'terminal', hint: 'Terminal in this repository (Ctrl+`)' },
+    logs: {
+      label: 'Logs',
+      icon: 'file-text',
+      hint: 'Output of the checks you ran (pre-commit hook)',
+    },
     issues: { label: 'Issues', icon: 'issue', hint: 'Issues and board' },
     pulls: { label: 'Pull requests', icon: 'pr', hint: 'Pull requests' },
   }
@@ -128,6 +135,13 @@
         >
           <Icon name={META[tab].icon} size={14} class={on ? 'text-accent' : ''} />
           {META[tab].label}
+          {#if tab === 'logs' && logs.current?.status === 'running'}
+            <span class="size-2 animate-pulse rounded-full bg-accent"></span>
+          {:else if tab === 'logs' && logs.current?.status === 'failed'}
+            <span class="size-2 rounded-full bg-del"></span>
+          {:else if tab === 'logs' && logs.current?.status === 'passed'}
+            <span class="size-2 rounded-full bg-add"></span>
+          {/if}
           {#if tab === 'files' && repo.selected && repo.files.length}
             <span class="chip">{repo.files.length}</span>
           {/if}
@@ -174,7 +188,8 @@
     <div class="h-full" class:hidden={active !== 'terminal'}>
       <TerminalPanel visible={dock.open && active === 'terminal'} />
     </div>
-    {#if active === 'files'}<CommitDetails />
+    {#if active === 'logs'}<LogsPanel />
+    {:else if active === 'files'}<CommitDetails />
     {:else if active === 'description'}<DescriptionPanel />
     {:else if forgeTab}<ForgeView kind={forgeTab} />{/if}
   </div>

@@ -181,8 +181,17 @@ export const api = {
   stageFiles: (path: string, files: string[]) => invoke<void>('stage_files', { path, files }),
   unstageFiles: (path: string, files: string[]) => invoke<void>('unstage_files', { path, files }),
   discardFiles: (path: string, files: string[]) => invoke<void>('discard_files', { path, files }),
-  commitChanges: (path: string, message: string, amend: boolean) =>
-    invoke<void>('commit_changes', { path, message, amend }),
+  commitChanges: (path: string, message: string, amend: boolean, noVerify = false) =>
+    invoke<void>('commit_changes', { path, message, amend, noVerify }),
+  onHookLog: (
+    cb: (e: { path: string; kind: 'start' | 'line' | 'end'; text: string; ok: boolean }) => void,
+  ) =>
+    listen<{ path: string; kind: 'start' | 'line' | 'end'; text: string; ok: boolean }>(
+      'hook-log',
+      (e) => cb(e.payload),
+    ),
+  runPreCommit: (path: string) =>
+    invoke<{ found: boolean; ok: boolean; output: string }>('run_pre_commit', { path }),
   headMessage: (path: string) => invoke<string>('head_message', { path }),
   confirm: (message: string, title: string, okLabel = 'Discard') =>
     ask(message, { title, kind: 'warning', okLabel, cancelLabel: 'Cancel' }),

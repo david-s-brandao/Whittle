@@ -25,7 +25,59 @@ pub fn set_git_binary(path: Option<String>) {
 /// A new `git` process using the configured executable.
 fn git_command() -> Command {
     let bin = GIT_BINARY.read().ok().and_then(|b| b.clone());
-    Command::new(bin.unwrap_or_else(|| "git".to_string()))
+    let mut cmd = Command::new(bin.unwrap_or_else(|| "git".to_string()));
+    apply_user_path(&mut cmd);
+    cmd
+}
+
+/// The `PATH` of the user's login shell. An app started from the desktop doesn't inherit it,
+/// so tools installed through nvm, fnm, bun, cargo, … would be invisible to git hooks
+/// ("Install Node.js and Bun" even though both are installed). Resolved once; `None` when the
+/// shell can't be asked (the inherited `PATH` is then used unchanged).
+fn user_path() -> Option<&'static str> {
+    static PATH: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    PATH.get_or_init(|| {
+        #[cfg(windows)]
+        {
+            None
+        }
+        #[cfg(not(windows))]
+        {
+            let shell = std::env::var("SHELL")
+                .ok()
+                .filter(|s| !s.is_empty())
+                .unwrap_or_else(|| "/bin/sh".into());
+            let (tx, rx) = std::sync::mpsc::channel();
+            std::thread::spawn(move || {
+                // markers separate the PATH from any noise an interactive rc file prints
+                let out = Command::new(shell)
+                    .args(["-ilc", "printf '__WH__%s__WH__' \"$PATH\""])
+                    .stdin(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .output();
+                let _ = tx.send(out);
+            });
+            let out = rx
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .ok()?
+                .ok()?;
+            let text = String::from_utf8_lossy(&out.stdout).into_owned();
+            let path = text.split("__WH__").nth(1)?.trim().to_string();
+            (!path.is_empty()).then_some(path)
+        }
+    })
+    .as_deref()
+}
+
+/// Merges the login-shell `PATH` in front of the current one for a child process.
+fn apply_user_path(cmd: &mut Command) {
+    if let Some(user) = user_path() {
+        let merged = match std::env::var("PATH") {
+            Ok(own) if !own.is_empty() => format!("{user}:{own}"),
+            _ => user.to_string(),
+        };
+        cmd.env("PATH", merged);
+    }
 }
 
 /// Runs `<bin> --version`; returns its output ("git version 2.43.0") or why it can't run.
@@ -998,10 +1050,24 @@ pub fn discard(repo: &Path, paths: &[String]) -> Result<(), CliError> {
 
 /// Commits the index. With `amend`, replaces HEAD (an empty message keeps the old one).
 pub fn commit(repo: &Path, message: &str, amend: bool) -> Result<(), CliError> {
+    commit_with(repo, message, amend, false)
+}
+
+/// Like [`commit`]; with `no_verify` the pre-commit and commit-msg hooks are skipped
+/// (`git commit --no-verify`).
+pub fn commit_with(
+    repo: &Path,
+    message: &str,
+    amend: bool,
+    no_verify: bool,
+) -> Result<(), CliError> {
     let message = message.trim();
     let mut args = vec!["commit", "-q"];
     if amend {
         args.push("--amend");
+    }
+    if no_verify {
+        args.push("--no-verify");
     }
     if message.is_empty() {
         if !amend {
@@ -1013,6 +1079,109 @@ pub fn commit(repo: &Path, message: &str, amend: bool) -> Result<(), CliError> {
         args.extend(["-m", message]);
         run(repo, &args).map(|_| ())
     }
+}
+
+/// Result of running the repository's pre-commit hook on its own.
+#[derive(serde::Serialize)]
+pub struct HookResult {
+    /// False when the repository has no (executable) pre-commit hook.
+    pub found: bool,
+    pub ok: bool,
+    /// Everything the hook printed (stdout and stderr).
+    pub output: String,
+}
+
+/// Runs the repository's pre-commit hook without committing, so checks and tests can be
+/// tried before (or instead of) a commit. Honours `core.hooksPath`.
+pub fn run_pre_commit(repo: &Path) -> Result<HookResult, CliError> {
+    run_pre_commit_with(repo, |_| {})
+}
+
+/// Like [`run_pre_commit`], and calls `on_line` for every line the hook prints (stdout and
+/// stderr merged, as it happens). `\r` also ends a line, so progress output stays readable.
+pub fn run_pre_commit_with(
+    repo: &Path,
+    mut on_line: impl FnMut(&str),
+) -> Result<HookResult, CliError> {
+    use std::io::Read;
+    use std::process::Stdio;
+
+    let rel = run(repo, &["rev-parse", "--git-path", "hooks/pre-commit"])?;
+    let rel = rel.trim();
+    let hook = if Path::new(rel).is_absolute() {
+        std::path::PathBuf::from(rel)
+    } else {
+        repo.join(rel)
+    };
+    if !hook.is_file() {
+        return Ok(HookResult {
+            found: false,
+            ok: true,
+            output: String::new(),
+        });
+    }
+    let mut cmd = Command::new(&hook);
+    cmd.current_dir(repo)
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    apply_user_path(&mut cmd);
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| CliError::Failed(format!("Can't run the pre-commit hook: {e}")))?;
+
+    let (tx, rx) = std::sync::mpsc::channel::<String>();
+    let mut readers = Vec::new();
+    let streams: [Option<Box<dyn Read + Send>>; 2] = [
+        child.stdout.take().map(|s| Box::new(s) as _),
+        child.stderr.take().map(|s| Box::new(s) as _),
+    ];
+    for stream in streams.into_iter().flatten() {
+        let tx = tx.clone();
+        readers.push(std::thread::spawn(move || {
+            let mut stream = stream;
+            let (mut buf, mut line) = ([0u8; 4096], Vec::<u8>::new());
+            loop {
+                let n = match stream.read(&mut buf) {
+                    Ok(0) | Err(_) => break,
+                    Ok(n) => n,
+                };
+                for &b in &buf[..n] {
+                    if b == b'\n' || b == b'\r' {
+                        if !line.is_empty() {
+                            let _ = tx.send(String::from_utf8_lossy(&line).into_owned());
+                            line.clear();
+                        }
+                    } else {
+                        line.push(b);
+                    }
+                }
+            }
+            if !line.is_empty() {
+                let _ = tx.send(String::from_utf8_lossy(&line).into_owned());
+            }
+        }));
+    }
+    drop(tx);
+
+    let mut output = String::new();
+    for line in rx {
+        on_line(&line);
+        output.push_str(&line);
+        output.push('\n');
+    }
+    for r in readers {
+        let _ = r.join();
+    }
+    let status = child
+        .wait()
+        .map_err(|e| CliError::Failed(format!("The pre-commit hook did not finish: {e}")))?;
+    Ok(HookResult {
+        found: true,
+        ok: status.success(),
+        output: output.trim().to_string(),
+    })
 }
 
 /// Branch/ref names are passed to git as positional arguments, so they must never look like options.
@@ -1409,6 +1578,26 @@ mod tests {
         let st = work_status(dir.path()).unwrap();
         assert!(st.staged.is_empty());
         assert_eq!(st.unstaged[0].status, "untracked");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn failing_pre_commit_hook_blocks_until_skipped() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = repo();
+        assert!(!run_pre_commit(dir.path()).unwrap().found);
+        let hook = dir.path().join(".git/hooks/pre-commit");
+        std::fs::create_dir_all(hook.parent().unwrap()).unwrap();
+        std::fs::write(&hook, "#!/bin/sh\necho nope >&2\nexit 1\n").unwrap();
+        std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755)).unwrap();
+        write(&dir, "a.txt", "a");
+        stage(dir.path(), &s(&["a.txt"])).unwrap();
+        let r = run_pre_commit(dir.path()).unwrap();
+        assert!(r.found && !r.ok);
+        assert!(r.output.contains("nope"));
+        assert!(commit(dir.path(), "blocked", false).is_err());
+        commit_with(dir.path(), "forced", false, true).unwrap();
+        assert_eq!(crate::git::head_message(dir.path()).unwrap(), "forced");
     }
 
     #[test]

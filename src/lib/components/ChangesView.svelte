@@ -13,6 +13,8 @@
   import Icon from './Icon.svelte'
 
   const st = $derived(changes.status)
+  let showOptions = $state(false)
+  const activeOptions = $derived(changes.amend || changes.skipHooks)
   let fileQuery = $state('')
   let advance = $state(true)
   let messageInput = $state<HTMLTextAreaElement>()
@@ -66,8 +68,8 @@
       commit()
     }
   }
-  async function commit() {
-    await changes.commit()
+  async function commit(force = false) {
+    await changes.commit(force)
     repo.refresh() // new commit shows up in History + sidebar
   }
 </script>
@@ -279,27 +281,70 @@
           >
         {/each}
       </div>
-      <label class="mt-2.5 flex cursor-pointer items-center gap-2 text-[12.5px] select-none">
-        <input
-          type="checkbox"
-          class="size-3.5 accent-[var(--accent)]"
-          checked={changes.amend}
-          disabled={changes.busy}
-          onchange={(e) => changes.setAmend(e.currentTarget.checked)}
-        />
-        Amend last commit
-      </label>
-      <button
-        class="btn btn-primary btn-lg mt-3 w-full justify-center font-semibold"
-        disabled={!changes.canCommit}
-        onclick={commit}
-      >
-        <Icon name="commit" />
-        {changes.busy ? 'Working…' : commitLabel}
-      </button>
+      <div class="mt-3 flex gap-1.5">
+        <button
+          class="btn btn-primary btn-lg min-w-0 flex-1 justify-center font-semibold"
+          disabled={!changes.canCommit}
+          onclick={() => commit()}
+        >
+          <Icon name="commit" />
+          <span class="truncate">{changes.busy ? 'Working…' : commitLabel}</span>
+        </button>
+        <button
+          class="btn btn-outline btn-lg relative w-9 justify-center px-0 {showOptions
+            ? 'border-accent text-accent'
+            : ''}"
+          title="Commit options"
+          aria-label="Commit options"
+          aria-expanded={showOptions}
+          onclick={() => (showOptions = !showOptions)}
+        >
+          <Icon name="settings" size={15} />
+          {#if activeOptions}
+            <span class="absolute top-1 right-1 size-2 rounded-full bg-accent"></span>
+          {/if}
+        </button>
+      </div>
+      {#if showOptions}
+        <div class="mt-2 rounded-md border border-border bg-surface-2 p-1" role="group">
+          {#each [{ label: 'Amend last commit', hint: 'Replace the previous commit instead of adding a new one', checked: changes.amend, change: (on: boolean) => changes.setAmend(on) }, { label: 'Skip hooks', hint: 'Force commit: git commit --no-verify skips pre-commit and commit-msg checks', checked: changes.skipHooks, change: (on: boolean) => (changes.skipHooks = on) }] as opt (opt.label)}
+            <label
+              class="flex cursor-pointer items-start gap-2.5 rounded px-2 py-1.5 select-none hover:bg-hover"
+            >
+              <input
+                type="checkbox"
+                class="mt-0.5 size-3.5 accent-[var(--accent)]"
+                checked={opt.checked}
+                disabled={changes.busy}
+                onchange={(e) => opt.change(e.currentTarget.checked)}
+              />
+              <span class="min-w-0">
+                <span class="block text-[12.5px] font-medium">{opt.label}</span>
+                <span class="block text-[11px] leading-snug text-muted">{opt.hint}</span>
+              </span>
+            </label>
+          {/each}
+          <div class="mt-1 border-t border-border pt-1">
+            <button
+              class="btn w-full justify-start"
+              disabled={changes.busy}
+              title="Run the repository's pre-commit hook (checks, tests…) without committing"
+              onclick={() => changes.runChecks()}
+            >
+              <Icon name="terminal" size={14} />
+              Run checks now
+            </button>
+          </div>
+        </div>
+      {/if}
       <div class="mt-2 min-h-4 text-[12px]">
         {#if changes.error}
-          <span class="text-del">{changes.error}</span>
+          <span class="whitespace-pre-wrap text-del">{changes.error}</span>
+          {#if changes.canCommit && !changes.skipHooks}
+            <button class="ml-1 text-accent underline" onclick={() => commit(true)}
+              >Commit anyway</button
+            >
+          {/if}
         {:else if changes.notice}
           <span class="text-add">{changes.notice}</span>
         {:else if changes.blocker}

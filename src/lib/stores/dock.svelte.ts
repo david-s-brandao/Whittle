@@ -1,6 +1,7 @@
+import { logs } from './logs.svelte'
 import { ui } from './ui.svelte'
 
-export type DockTab = 'files' | 'description' | 'terminal' | 'issues' | 'pulls'
+export type DockTab = 'files' | 'description' | 'terminal' | 'logs' | 'issues' | 'pulls'
 
 const KEY = 'whittle.dock'
 const OLD_HEIGHT_KEY = 'whittle.detailsHeight'
@@ -12,7 +13,7 @@ interface Saved {
   height: number
 }
 
-const TABS: DockTab[] = ['files', 'description', 'terminal', 'issues', 'pulls']
+const TABS: DockTab[] = ['files', 'description', 'terminal', 'logs', 'issues', 'pulls']
 
 function load(): Saved {
   const d: Saved = { open: true, tab: 'files', height: 320 }
@@ -45,6 +46,7 @@ class Dock {
   get available(): DockTab[] {
     return TABS.filter((t) => {
       if (t === 'files' || t === 'description') return ui.view === 'history'
+      if (t === 'logs') return logs.current !== undefined
       if (t === 'issues' || t === 'pulls') return ui.view !== t
       return true
     })
@@ -73,6 +75,14 @@ class Dock {
       if (tab) this.tab = tab
       this.open = true
     }
+    this.persist()
+  }
+
+  /** Opens the Logs tab (it only exists once a run has started, so make sure it is chosen). */
+  showLogs() {
+    this.maximized = false
+    this.tab = 'logs'
+    this.open = true
     this.persist()
   }
 

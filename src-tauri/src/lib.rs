@@ -449,8 +449,64 @@ async fn rebase_interactive(
 }
 
 #[tauri::command]
-async fn commit_changes(path: String, message: String, amend: bool) -> CmdResult<()> {
-    blocking(move || cli::commit(Path::new(&path), &message, amend)).await
+async fn commit_changes(
+    path: String,
+    message: String,
+    amend: bool,
+    no_verify: Option<bool>,
+) -> CmdResult<()> {
+    blocking(move || {
+        cli::commit_with(
+            Path::new(&path),
+            &message,
+            amend,
+            no_verify.unwrap_or(false),
+        )
+    })
+    .await
+}
+
+/// One `hook-log` event: the Logs tab shows what the pre-commit hook prints, live.
+#[derive(Clone, serde::Serialize)]
+struct HookLog {
+    path: String,
+    /// "start", "line" or "end"
+    kind: &'static str,
+    text: String,
+    ok: bool,
+}
+
+/// Runs the pre-commit hook on its own (checks / tests) without committing, emitting
+/// `hook-log` events while it runs.
+#[tauri::command]
+async fn run_pre_commit(app: tauri::AppHandle, path: String) -> CmdResult<cli::HookResult> {
+    use tauri::Emitter;
+    blocking(move || {
+        let emit = |kind: &'static str, text: String, ok: bool| {
+            let _ = app.emit(
+                "hook-log",
+                HookLog {
+                    path: path.clone(),
+                    kind,
+                    text,
+                    ok,
+                },
+            );
+        };
+        emit("start", String::new(), true);
+        let result = cli::run_pre_commit_with(Path::new(&path), |line| {
+            emit("line", line.to_string(), true)
+        });
+        match &result {
+            Ok(r) => emit("end", String::new(), r.ok && r.found),
+            Err(e) => {
+                emit("line", e.to_string(), false);
+                emit("end", String::new(), false)
+            }
+        }
+        result
+    })
+    .await
 }
 
 #[tauri::command]
@@ -1094,6 +1150,7 @@ pub fn run() {
             save_resolved_file,
             open_in_editor,
             commit_changes,
+            run_pre_commit,
             head_message,
             git_sync,
             checkout_branch,

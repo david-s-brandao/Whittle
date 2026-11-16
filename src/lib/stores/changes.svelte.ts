@@ -1,6 +1,8 @@
 import { api } from '../api'
 import { plural } from '../format'
 import type { FileDiff, Selection, WorkStatus } from '../types'
+import { dock } from './dock.svelte'
+import { logs } from './logs.svelte'
 import { projects } from './projects.svelte'
 
 const empty: WorkStatus = { staged: [], unstaged: [], conflicted: [], operation: null }
@@ -21,6 +23,8 @@ class Changes {
   conflictText = $state<string | null>(null)
   message = $state('')
   amend = $state(false)
+  /** Skip the pre-commit / commit-msg hooks (`git commit --no-verify`). */
+  skipHooks = $state(false)
   busy = $state(false)
   error = $state<string | null>(null)
   notice = $state<string | null>(null)
@@ -245,18 +249,39 @@ class Changes {
     return 'Write a commit message.'
   }
 
-  async commit() {
+  /** Commits; `force` skips the hooks for this one commit. */
+  async commit(force = false) {
     if (!this.canCommit) return
     const path = projects.current?.path
     const amend = this.amend
+    const noVerify = force || this.skipHooks
     const n = this.status.staged.length
-    const ok = await this.#run((p) => api.commitChanges(p, this.message, amend))
+    const ok = await this.#run((p) => api.commitChanges(p, this.message, amend, noVerify))
     if (ok) {
       if (path) this.#commitDrafts.delete(path)
       if (projects.current?.path !== path) return
       this.message = ''
       this.amend = false
       this.notice = amend ? 'Commit amended.' : `Committed ${plural(n, 'file')}.`
+    }
+  }
+
+  /** Runs the repo's pre-commit hook (checks, tests…) and streams it into the Logs tab. */
+  async runChecks() {
+    const path = projects.current?.path
+    if (!path || this.busy) return
+    this.busy = true
+    this.error = null
+    this.notice = null
+    logs.listen()
+    dock.showLogs()
+    try {
+      const r = await api.runPreCommit(path)
+      if (!r.found) logs.markNone(path)
+    } catch (e) {
+      if (projects.current?.path === path) this.error = String(e)
+    } finally {
+      this.busy = false
     }
   }
 }
